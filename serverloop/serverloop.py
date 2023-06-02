@@ -5,34 +5,38 @@ import time
 
 class WaitingObject:
     _name = None
+    _is_done = False
     
     def __init__(self, name=None):
         self._name = name
-   
-    def is_waiting_to_receive(self):
+
+    def is_done(self):
+        return self._is_done
+    def is_waiting_to_receive(self) -> bool:
         return False
-    def is_waiting_to_send(self):
+    def is_waiting_to_send(self) -> bool:
         return False
-    def is_waiting_for_exception(self):
+    def is_waiting_for_exception(self) -> bool:
         return False
-    def is_waiting_for_timeout(self):
+    def is_waiting_for_timeout(self) -> bool:
         return False
     
-    def do_receive(self):
+    def do_receive(self) -> None:
         pass
-    def do_send(self):
+    def do_send(self) -> None:
         pass
-    def do_exception(self):
+    def do_exception(self) -> None:
         pass
-    def do_timeout(self):
+    def do_timeout(self) -> None:
         pass
     
-    def __str__(self):
+    def __str__(self) -> str:
         return f'WaitingObject({self._name})'
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'WaitingObject({self._name})'    
 
-class WaitingCallback(WaitingObject):
+
+class WaitingOnetimeCallback(WaitingObject):
     _target = None
     _fileno = None
     _callback = None
@@ -72,16 +76,20 @@ class WaitingCallback(WaitingObject):
     
     def do_receive(self):
         self._callback()
+        self._is_done = True
         
     def do_send(self):
         self._callback()
+        self._is_done = True
         
     def do_exception(self):
         self._callback()
+        self._is_done = True
     
     def do_timeout(self):
         self._target = None
         self._callback()
+        self._is_done = True
 
 
 class RepeatedCallback(WaitingObject):
@@ -100,7 +108,10 @@ class RepeatedCallback(WaitingObject):
     
     def do_timeout(self):
         self._target = time.time() + self._interval
-        self._callback()
+        r = self._callback()
+        if r is False:
+            self._target = None
+            self._is_done = True
 
 
 class ServerLoop:
@@ -119,29 +130,33 @@ class ServerLoop:
     def __init__(self):
         pass
     
-    def run(self):
+    def run(self) -> None:
         self.main_loop()
     
-    def stop(self):
+    def stop(self) -> None:
         self._running = False
         
-    def add_waiting_object(self, waiting_object):
+    def add_waiting_object(self, waiting_object) -> WaitingObject:
         self._waiting_objects.append(waiting_object)
+        return waiting_object
     
-    def call_after(self, seconds, callback, name=None):
-        self.add_waiting_object(WaitingCallback(callback, seconds=seconds, name=name))
+    def remove_waiting_object(self, waiting_object) -> None:
+        self._waiting_objects.remove(waiting_object)
+    
+    def call_after(self, seconds, callback, name=None) -> WaitingObject:
+        return self.add_waiting_object(WaitingOnetimeCallback(callback, seconds=seconds, name=name))
         
-    def call_when_ready_to_receive(self, fileno, callback, name=None):
-        self.add_waiting_object(WaitingCallback(callback, fileno=fileno, is_waiting_to_receive=True, name=name))
+    def call_when_ready_to_receive(self, fileno, callback, name=None) -> WaitingObject:
+        return self.add_waiting_object(WaitingOnetimeCallback(callback, fileno=fileno, is_waiting_to_receive=True, name=name))
         
-    def call_when_ready_to_send(self, fileno, callback, name=None):
-        self.add_waiting_object(WaitingCallback(callback, fileno=fileno, is_waiting_to_send=True, name=name))
+    def call_when_ready_to_send(self, fileno, callback, name=None) -> WaitingObject:
+        return self.add_waiting_object(WaitingOnetimeCallback(callback, fileno=fileno, is_waiting_to_send=True, name=name))
         
-    def call_when_exception(self, fileno, callback, name=None):
-        self.add_waiting_object(WaitingCallback(callback, fileno=fileno, is_waiting_for_exception=True, name=name))
+    def call_when_exception(self, fileno, callback, name=None) -> WaitingObject:
+        return self.add_waiting_object(WaitingOnetimeCallback(callback, fileno=fileno, is_waiting_for_exception=True, name=name))
         
-    def call_repeatedly(self, interval, callback, name=None):
-        self.add_waiting_object(RepeatedCallback(callback, interval, name=name))
+    def call_repeatedly(self, interval, callback, name=None) -> WaitingObject:
+        return self.add_waiting_object(RepeatedCallback(callback, interval, name=name))
         
     def call_on_idle_timeout(self, callback, name=None):
         # FIXME: Add name to callback
@@ -155,38 +170,41 @@ class ServerLoop:
         # FIXME: Add name to callback
         self._callbacks['on_shutdown'].append(callback)
         
-    def build_waiting_lists(self):
+    def build_waiting_lists(self) -> tuple[list, list, list, float]:
         waiting_r = []
         waiting_w = []
         waiting_x = []
         min_timestamp = None
         
-        
         # Sort waiting objects into lists, depending on what they are waiting for
         to_process = self._waiting_objects[:]
         for waiting_object in to_process:
-            is_waiting = False
+            if waiting_object.is_done():
+                print(f'build_waiting_lists: Removing {waiting_object} from waiting list.')
+                self._waiting_objects.remove(waiting_object)
+                continue
             if waiting_object.is_waiting_to_receive():
                 waiting_r.append(waiting_object)
-                is_waiting = True
             if waiting_object.is_waiting_to_send():
                 waiting_w.append(waiting_object)
-                is_waiting = True
             if waiting_object.is_waiting_for_exception():
                 waiting_x.append(waiting_object)
-                is_waiting = True
             timeout = waiting_object.is_waiting_for_timeout()
             if not (timeout is None or timeout is False):
-                is_waiting = True
                 if min_timestamp is None or timeout < min_timestamp:
                     min_timestamp = timeout
-            if not is_waiting:
-                # Remove waiting object from list
-                self._waiting_objects.remove(waiting_object)
         
         return waiting_r, waiting_w, waiting_x, min_timestamp
+    
+    def prune_waiting_list(self) -> None:
+        # Remove all waiting objects that are done
+        to_process = self._waiting_objects[:]
+        for waiting_object in to_process:
+            if waiting_object.is_done():
+                print(f'prune_waiting_list: Removing {waiting_object} from waiting list.')
+                self._waiting_objects.remove(waiting_object)
 
-    def handle_timeouts(self):
+    def handle_timeouts(self) -> int:
         # Call do_timeout() on objects that are waiting for a timeout and have timed out
         count_timeouts = 0
         for waiting_object in self._waiting_objects:
@@ -197,7 +215,7 @@ class ServerLoop:
                     waiting_object.do_timeout()
         return count_timeouts
 
-    def main_loop(self):
+    def main_loop(self) -> None:
         self._last_tick = time.time()
         self._current_tick = None
         self._running = True
@@ -230,6 +248,9 @@ class ServerLoop:
                 # Handle idle timeout, if nothing happened
                 if len(r) == 0 and len(w) == 0 and len(x) == 0 and count_timeouts == 0:
                     self.on_idle_timeout()
+                
+                # Prune waiting list
+                self.prune_waiting_list()
 
                 self._last_tick = self._current_tick
                 self._current_tick = None
@@ -239,17 +260,17 @@ class ServerLoop:
         
         self.on_shutdown()
 
-    def _run_callbacks(self, callback_name):
+    def _run_callbacks(self, callback_name) -> None:
         for callback in self._callbacks[callback_name]:
             callback()
     
-    def on_idle_timeout(self):
+    def on_idle_timeout(self) -> None:
         self._run_callbacks('on_idle_timeout')
     
-    def on_keyboard_interrupt(self):
+    def on_keyboard_interrupt(self) -> None:
         self._run_callbacks('on_keyboard_interrupt')
     
-    def on_shutdown(self):
+    def on_shutdown(self) -> None:
         self._run_callbacks('on_shutdown')
 
 

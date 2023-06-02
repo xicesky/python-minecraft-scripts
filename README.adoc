@@ -1,0 +1,31 @@
+= Sky's minecraft server wrapper
+:experimental:
+:source-highlighter: rouge
+:source-language: shell
+:icons: font
+:toc: true
+:sectanchors:
+:star: *
+Markus Dangl
+
+== Overview
+
+Experimental minecraft-server control script.
+Features:
+
+* Starts self in a tmux session
+* Downloads fabric and starts a fabric server
+* Broadcasts server to LAN
+
+== Missing features and bugs
+
+* Does not handle terminal input nicely
+* Does not check the server port yet
+* Broadcasts even before the server is up
+* Missing proper logging (logs a bunch of crap and should output as json and to a file)
+
+== TODO
+
+Use a library instead of writing my own async handling -- candidates:
+
+* https://twisted.org/
