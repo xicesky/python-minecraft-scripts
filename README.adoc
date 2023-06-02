@@ -14,7 +14,9 @@ Experimental minecraft-server control script.
 Features:
 
 * Starts self in a tmux session
-* Downloads fabric and starts a fabric server
+* Downloads fabric launcher
+* Syncs mods with mods directory from a zip file
+* Starts a fabric server
 * Broadcasts server to LAN
 
 == Missing features and bugs

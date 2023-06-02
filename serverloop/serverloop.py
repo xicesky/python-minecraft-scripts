@@ -1,7 +1,9 @@
 
+import logging
 import select
 import time
 
+logger = logging.getLogger(__name__)
 
 class WaitingObject:
     _name = None
@@ -180,7 +182,7 @@ class ServerLoop:
         to_process = self._waiting_objects[:]
         for waiting_object in to_process:
             if waiting_object.is_done():
-                print(f'build_waiting_lists: Removing {waiting_object} from waiting list.')
+                logger.debug(f'build_waiting_lists: Removing {waiting_object} from waiting list.')
                 self._waiting_objects.remove(waiting_object)
                 continue
             if waiting_object.is_waiting_to_receive():
@@ -201,7 +203,7 @@ class ServerLoop:
         to_process = self._waiting_objects[:]
         for waiting_object in to_process:
             if waiting_object.is_done():
-                print(f'prune_waiting_list: Removing {waiting_object} from waiting list.')
+                logger.debug(f'prune_waiting_list: Removing {waiting_object} from waiting list.')
                 self._waiting_objects.remove(waiting_object)
 
     def handle_timeouts(self) -> int:
@@ -275,6 +277,7 @@ class ServerLoop:
 
 
 if __name__ == '__main__':
+    print('This just quickly tests the ServerLoop class.')
     serverLoop = ServerLoop()
     serverLoop.call_after(1.0, lambda: print('Hello, world!'))
     serverLoop.call_after(2.0, lambda: serverLoop.stop())

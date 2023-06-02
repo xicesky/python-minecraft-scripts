@@ -1,12 +1,17 @@
 
+import logging
+from pathlib import Path
 import sys
 import os
 import subprocess
 import shutil
 from time import sleep
+import zipfile
 from minecraft.broadcaster import MinecraftServerLANBroadcaster
 from serverloop.buffers import LineInputBuffer, OutputBuffer
 from serverloop.serverloop import RepeatedCallback, ServerLoop, WaitingObject
+
+logger = logging.getLogger(__name__)
 
 # Fabric server urls are built like this:
 # https://meta.fabricmc.net/v2/versions/loader/1.19.2/0.14.17/0.11.2/server/jar
@@ -16,6 +21,28 @@ def fabric_server_url(minecraft_version, loader_version, launcher_version):
 def fabric_server_jar_name(minecraft_version, loader_version, launcher_version):
     return f'fabric-server-mc.{minecraft_version}-loader.{loader_version}-launcher.{launcher_version}.jar'
 
+def find_mod_dir_in_zip(zip_file: zipfile.ZipFile, current_path: zipfile.Path = None) -> zipfile.Path or None:
+    if current_path is None:
+        current_path = zipfile.Path(zip_file)
+    if not current_path.is_dir():
+        raise MinecraftServerWrapperException('find_mod_dir_in_zip called with a non-directory path.')
+    if (current_path / 'mods').is_dir():
+        return current_path / 'mods'
+    
+    # Check if there is only one directory in the current path
+    dirs = [x for x in current_path.iterdir() if x.is_dir()]
+    if len(dirs) == 1:
+        # There is only one directory in the current path, so we can just go down one level
+        return find_mod_dir_in_zip(zip_file, dirs[0])
+    # Check for ony of the following directories: .minecraft
+    if (current_path / '.minecraft').is_dir():
+        return find_mod_dir_in_zip(zip_file, current_path / '.minecraft')
+    return None
+
+def copy_mod_from_zip(mod_path: zipfile.Path, dest_dir: Path):
+    with open(dest_dir / mod_path.name, 'wb') as destf:
+        with mod_path.open('rb') as srcf:
+            shutil.copyfileobj(srcf, destf)
 
 class MinecraftServerWrapperException(Exception):
     pass
@@ -29,6 +56,7 @@ class MinecraftServerWrapper:
     _fabric_launcher_version : str = '0.11.2'
     _auto_accept_eula : bool = True
     _java_executable_path : str = None
+    # See https://www.oracle.com/java/technologies/javase/vmoptions-jsp.html
     _java_args : list[str] = \
         [   '-Xms8G'
         ,   '-Xmx8G'
@@ -50,6 +78,7 @@ class MinecraftServerWrapper:
     _wo_minecraft_stdout : LineInputBuffer = None
     _wo_minecraft_stderr : LineInputBuffer = None
     _lan_broadcaster : MinecraftServerLANBroadcaster = None
+    _autoload_modpack : bool = True
     
     def __init__(self):
         if self._working_dir is None:
@@ -61,7 +90,9 @@ class MinecraftServerWrapper:
         self._lan_broadcaster = MinecraftServerLANBroadcaster()
     
     def start(self):
+        logger.info('Starting Minecraft server wrapper...')
         self.create_working_dir()
+        self.sync_modpack()
         if self._auto_accept_eula:
             self.accept_eula()
         self.download_launcher()
@@ -78,13 +109,65 @@ class MinecraftServerWrapper:
 
     def create_working_dir(self):
         if not os.path.exists(self._working_dir):
+            logger.info('Creating working directory: {:s}'.format(self._working_dir))
             os.mkdir(self._working_dir)
         else:
-            print('Working directory already exists, skipping creation.')
+            logger.info('Working directory already exists, skipping creation.')
+
+    def find_modpack_zip(self, directory) -> str or None:
+        # Find zip file
+        zip_files = []
+        for file in os.listdir('.'):
+            if not file.endswith('.zip'):
+                continue
+            if not zipfile.is_zipfile(file):
+                logger.warning('Found file {:s} that is not a valid zip file, skipping.'.format(file))
+                continue
+            zip_files.append(file)
+        if len(zip_files) > 1:
+            raise MinecraftServerWrapperException('Found more than one zip file in current directory.')
+        elif len(zip_files) == 1:
+            return zip_files[0]
+        return None
+    
+    def sync_modpack(self):
+        mod_zip = self.find_modpack_zip(".")
+        if mod_zip is None:
+            # No modpack zip found
+            logger.info('No modpack zip found, not syncing mods.')
+            return
+        modpack_mod_dir = find_mod_dir_in_zip(mod_zip)
+        if modpack_mod_dir is None:
+            logger.info('No mods directory found in modpack zip, not syncing mods.')
+            return
+        filename = str(modpack_mod_dir.filename)
+        logger.info('Syncing mods from {:s}'.format(filename))
+        mod_dir = Path(self._working_dir) / 'mods'
+        if not mod_dir.exists():
+            logger.info('Creating mods directory: {:s}'.format(str(mod_dir)))
+            os.mkdir(mod_dir)
+        if not mod_dir.is_dir():
+            raise MinecraftServerWrapperException('"mods" is not a directory.')
+
+        current_mods = [x.name for x in mod_dir.iterdir() if x.is_file()]
+        logger.debug('Current mods:\n    {:s}'.format('\n    '.join(current_mods)))
+        modpack_mods = [x.name for x in modpack_mod_dir.iterdir() if x.is_file()]
+        logger.debug('Modpack mods:\n    {:s}'.format('\n    '.join(modpack_mods)))
+        for current_mod in current_mods:
+            if current_mod in modpack_mods:
+                continue
+            logger.info('Removing mod {:s}...'.format(current_mod))
+            shutil.rmtree(mod_dir / current_mod)
+        for modpack_mod in modpack_mods:
+            if modpack_mod in current_mods:
+                continue
+            logger.info('Copying mod {:s}...'.format(modpack_mod))
+            copy_mod_from_zip(modpack_mods / modpack_mod, mod_dir)
+        logger.info('Done syncing mods.')
 
     def accept_eula(self):
         # Replace "eula=false" with "eula=true" in eula.txt
-        print('Accepting EULA...')
+        logger.info('Accepting EULA...')
         if os.path.exists(self._working_dir + '/eula.txt'):
             with open(self._working_dir + '/eula.txt', 'r') as f:
                 lines = f.readlines()
@@ -102,9 +185,9 @@ class MinecraftServerWrapper:
         if self._current_jar_path is None:
             self._current_jar_path = self._working_dir + '/' + fabric_server_jar_name(self._minecraft_version, self._fabric_loader_version, self._fabric_launcher_version)
         if os.path.exists(self._current_jar_path):
-            print('Launcher jar already exists, skipping download.')
+            logger.info('Launcher jar already exists, skipping download.')
         else:
-            print('Downloading launcher jar...')
+            logger.info('Downloading launcher jar...')
             r = os.system(f'wget -O "{self._current_jar_path}" "{fabric_server_url(self._minecraft_version, self._fabric_loader_version, self._fabric_launcher_version)}"')
             if r != 0:
                 raise MinecraftServerWrapperException(f'Failed to download launcher jar (wget returned non-zero exit code: {r}).')
@@ -142,7 +225,7 @@ class MinecraftServerWrapper:
         self.stop_minecraft_server()
 
     def log(self, source, line):
-        print('{:10s}: {:s}'.format(source, line))
+        logger.info('{:10s}: {:s}'.format(source, line))
         
     def send_to_mc(self, command):
         # self.log_traffic('to-server', command)
@@ -182,4 +265,5 @@ class MinecraftServerWrapper:
             self._serverloop.stop()
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
     MinecraftServerWrapper().start()

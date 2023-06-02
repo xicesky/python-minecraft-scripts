@@ -1,7 +1,10 @@
-
+    
+import logging
 import os
 from typing import Any, TextIO
 from serverloop.serverloop import WaitingObject
+
+logger = logging.getLogger(__name__)
 
 
 class LineInputBuffer(WaitingObject):
@@ -24,7 +27,7 @@ class LineInputBuffer(WaitingObject):
     def do_receive(self) -> None:
         read_bytes = self._handle.read()
         if len(read_bytes) == 0:
-            print(f'LineInputBuffer: EOF on {self._name}')
+            logger.debug(f'LineInputBuffer: EOF on {self._name}')
             self._handle.close()
             self._is_done = True
             return
@@ -36,6 +39,7 @@ class LineInputBuffer(WaitingObject):
             line = self._buffer[:pos]
             self._buffer = self._buffer[pos+1:]
             self._callback(line)
+
 
 class OutputBuffer(WaitingObject):
     _handle: TextIO = None

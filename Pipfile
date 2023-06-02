@@ -5,6 +5,10 @@ name = "pypi"
 
 [packages]
 libtmux = "*"
+click = "*"
+click-shell = "*"
+click-log = "*"
+colorama = "*"
 
 [dev-packages]
 
