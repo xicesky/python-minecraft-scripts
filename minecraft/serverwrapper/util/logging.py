@@ -3,7 +3,7 @@
 
 import logging
 import click
-
+import click_log
 
 class MyColorFormatter(logging.Formatter):
     colors = {
@@ -29,3 +29,13 @@ class MyColorFormatter(logging.Formatter):
                 return click.style(msg, **self.colors[level])
             return msg
         return self.delegate.format(self, record)
+
+
+def setup_logging():
+    # Set up logging
+    root_logger = logging.getLogger()
+    click_log.basic_config(root_logger)
+    root_logger.setLevel(logging.INFO)
+    root_logger.handlers[0].formatter = MyColorFormatter()
+    logger = logging.getLogger(__name__)
+    return logger

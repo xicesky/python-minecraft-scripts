@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import logging
 import click
 import click_log
-
-from util.logging import MyColorFormatter
+from minecraft.serverwrapper.selftmux.controller import TmuxServerController
+from minecraft.serverwrapper.serverwrapper import MinecraftServerWrapper
+from minecraft.serverwrapper.util.logging import setup_logging
 
 # Set up logging
-root_logger = logging.getLogger()
-click_log.basic_config(root_logger)
-root_logger.setLevel(logging.INFO)
-root_logger.handlers[0].formatter = MyColorFormatter()
-logger = logging.getLogger(__name__)
+logger = setup_logging()
 
 class NotYetImplementedError(click.ClickException):
     """Exception raised when a command is not yet implemented
@@ -27,7 +23,6 @@ class NotYetImplementedError(click.ClickException):
 def start():
     """Starts or attaches to the server in a tmux session
     """
-    from selftmux.controller import TmuxServerController
     TmuxServerController('minecraft', 'src.minecraft.serverwrapper').start()
 
 @click.command()
@@ -49,7 +44,6 @@ def stop():
 def run():
     """Runs the server in the foreground
     """
-    from minecraft.serverwrapper import MinecraftServerWrapper
     MinecraftServerWrapper().start()
 
 @click.group()

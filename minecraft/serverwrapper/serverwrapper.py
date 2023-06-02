@@ -7,10 +7,10 @@ import subprocess
 import shutil
 from time import sleep
 import zipfile
-from minecraft.broadcaster import MinecraftServerInfo, MinecraftServerLANBroadcaster
-from minecraft.logparser import MinecraftLogParser, MinecraftServerStartMessage
-from serverloop.buffers import LineInputBuffer, OutputBuffer
-from serverloop.serverloop import RepeatedCallback, ServerLoop, WaitingObject
+from minecraft.serverwrapper.broadcaster import MinecraftServerInfo, MinecraftServerLANBroadcaster
+from minecraft.serverwrapper.logparser import MinecraftLogParser, MinecraftServerStartMessage
+from minecraft.serverwrapper.serverloop.buffers import LineInputBuffer, OutputBuffer
+from minecraft.serverwrapper.serverloop.serverloop import RepeatedCallback, ServerLoop, WaitingObject
 
 logger = logging.getLogger(__name__)
 

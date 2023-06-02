@@ -2,7 +2,7 @@
 import socket
 import time
 
-from serverloop.serverloop import WaitingObject
+from minecraft.serverwrapper.serverloop.serverloop import WaitingObject
 
 class MinecraftServerInfo:
     name = None

@@ -2,7 +2,7 @@
 import logging
 import os
 from typing import Any, TextIO
-from serverloop.serverloop import WaitingObject
+from minecraft.serverwrapper.serverloop.serverloop import WaitingObject
 
 logger = logging.getLogger(__name__)
 

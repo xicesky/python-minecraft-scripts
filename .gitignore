@@ -160,7 +160,8 @@ cython_debug/
 #.idea/
 
 # VS Code
-.vscode
+/.vscode/**
+!/.vscode/launch.json
 
 # Minecraft server binaries + data
 /.minecraft-server
