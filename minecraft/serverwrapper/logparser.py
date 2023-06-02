@@ -73,22 +73,20 @@ class MinecraftLogParser:
 
     def add_line(self, line):
         if self._state == 0:
-            m = self._startup_line_pattern.match(line)
-            if m:
-                self.handle_message(MinecraftLogMessage('INFO', line))
-                return
-            # End of startup messages
-            self._state = 1
+            if line.startswith('['):
+                # End of startup messages
+                self._state = 1
+            else:
+                return self.handle_message(MinecraftLogMessage('INFO', line))
 
         if self._state == 1:
             m = self._normal_line_pattern.match(line)
             if m:
                 message = MinecraftLogMessage(m.group(3), m.group(4))
                 self._last_level = message.level
-                self.handle_message(message)
+                return self.handle_message(message)
             else:
-                self.handle_message(MinecraftLogMessage(self._last_level, line))
-            return
+                return self.handle_message(MinecraftLogMessage(self._last_level, line))
         
         raise NotImplementedError('state %d not implemented' % self._state)
     

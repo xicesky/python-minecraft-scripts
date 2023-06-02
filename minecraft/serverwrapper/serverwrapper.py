@@ -167,7 +167,7 @@ class MinecraftServerWrapper:
             if modpack_mod in current_mods:
                 continue
             logger.info('Copying mod {:s}...'.format(modpack_mod))
-            copy_mod_from_zip(modpack_mods / modpack_mod, mod_dir)
+            copy_mod_from_zip(modpack_mod_dir / modpack_mod, mod_dir)
         logger.info('Done syncing mods.')
 
     def accept_eula(self):
