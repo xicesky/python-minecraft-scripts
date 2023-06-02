@@ -5,12 +5,13 @@ import logging
 import click
 import click_log
 
+from util.logging import MyColorFormatter
+
 # Set up logging
 root_logger = logging.getLogger()
 click_log.basic_config(root_logger)
 root_logger.setLevel(logging.INFO)
-#root_logger.handlers[0].formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(funcName)s:%(lineno)d - %(message)s")
-root_logger.handlers[0].formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+root_logger.handlers[0].formatter = MyColorFormatter()
 logger = logging.getLogger(__name__)
 
 class NotYetImplementedError(click.ClickException):

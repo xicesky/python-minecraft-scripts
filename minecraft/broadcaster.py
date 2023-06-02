@@ -4,18 +4,32 @@ import time
 
 from serverloop.serverloop import WaitingObject
 
+class MinecraftServerInfo:
+    name = None
+    port = None
+
+    def __init__(self, name, port):
+        self.name = name
+        self.port = port
+
+    def __eq__(self, other):
+        return self.name == other.name and self.port == other.port
+    
+    def __hash__(self):
+        return hash((self.name, self.port))
+    
+    def __str__(self):
+        return '%s (*:%d)' % (self.name, self.port)
 
 class MinecraftServerLANBroadcaster(WaitingObject):
-    _servers = [
-        ["Moritz' Minecraft Server", 25565],
-    ]
+    _servers: list[MinecraftServerInfo] = []
     _broadcast_ip = "255.255.255.255"
     _broadcast_port = 4445
     # Similar to RepeatedCallback
     _interval = None
     _target = None
     
-    def __init__(self, interval=1.5):
+    def __init__(self, interval=1.0):
         self._interval = interval
         self._target = time.time() + interval
         
@@ -27,15 +41,14 @@ class MinecraftServerLANBroadcaster(WaitingObject):
         self.send_broadcasts()
     
     def send_broadcasts(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)        
-        for server in self._servers:
-            msg = "[MOTD]%s[/MOTD][AD]%d[/AD]" % (server[0], server[1])
-            sock.sendto(bytes(msg, 'UTF-8'), (self._broadcast_ip, self._broadcast_port))
-        sock.close()
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            for server in self._servers:
+                msg = "[MOTD]%s[/MOTD][AD]%d[/AD]" % (server.name, server.port)
+                sock.sendto(bytes(msg, 'UTF-8'), (self._broadcast_ip, self._broadcast_port))
     
-    def add_server(self, name, port):
-        self._servers.append([name, port])
+    def add_server(self, server: MinecraftServerInfo):
+        self._servers.append(server)
 
-    def remove_server(self, name, port):
-        self._servers.remove([name, port])
+    def remove_server(self, server: MinecraftServerInfo):
+        self._servers.remove(server)

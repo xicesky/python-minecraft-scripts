@@ -7,7 +7,8 @@ import subprocess
 import shutil
 from time import sleep
 import zipfile
-from minecraft.broadcaster import MinecraftServerLANBroadcaster
+from minecraft.broadcaster import MinecraftServerInfo, MinecraftServerLANBroadcaster
+from minecraft.logparser import MinecraftLogParser, MinecraftServerStartMessage
 from serverloop.buffers import LineInputBuffer, OutputBuffer
 from serverloop.serverloop import RepeatedCallback, ServerLoop, WaitingObject
 
@@ -78,7 +79,10 @@ class MinecraftServerWrapper:
     _wo_minecraft_stdout : LineInputBuffer = None
     _wo_minecraft_stderr : LineInputBuffer = None
     _lan_broadcaster : MinecraftServerLANBroadcaster = None
+    _server_name = "Moritz' Minecraft Server"
+    _server_info = None
     _autoload_modpack : bool = True
+    _logparser : MinecraftLogParser = None
     
     def __init__(self):
         if self._working_dir is None:
@@ -88,6 +92,7 @@ class MinecraftServerWrapper:
         if not os.path.exists(self._java_executable_path):
             raise MinecraftServerWrapperException('Java executable not found.')
         self._lan_broadcaster = MinecraftServerLANBroadcaster()
+        self._logparser = MinecraftLogParser(self.handle_minecraft_log_message)
     
     def start(self):
         logger.info('Starting Minecraft server wrapper...')
@@ -202,35 +207,42 @@ class MinecraftServerWrapper:
         self._server_subprocess = subprocess.Popen(commandline, cwd=self._working_dir, bufsize=1, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         sl = self._serverloop
         self._wo_minecraft_stdin = sl.add_waiting_object(OutputBuffer(self._server_subprocess.stdin, name='minecraft-stdin'))
-        self._wo_minecraft_stdout = sl.add_waiting_object(LineInputBuffer(self._server_subprocess.stdout, lambda line: self.handle_minecraft_server_output('stdout', line), name='minecraft-stdout'))
-        self._wo_minecraft_stderr = sl.add_waiting_object(LineInputBuffer(self._server_subprocess.stderr, lambda line: self.handle_minecraft_server_output('stderr', line), name='minecraft-stderr'))
+        self._wo_minecraft_stdout = sl.add_waiting_object(LineInputBuffer(self._server_subprocess.stdout, lambda line: self.handle_minecraft_server_output(line), name='minecraft-stdout'))
+        self._wo_minecraft_stderr = sl.add_waiting_object(LineInputBuffer(self._server_subprocess.stderr, lambda line: self.handle_minecraft_server_stderr(line), name='minecraft-stderr'))
         sl.call_repeatedly(1.0, self.check_minecraft_server, name='check-minecraft-server')
         
     def tick(self):
-        #self.log('tick', 'tick')
+        logger.debug('tick')
         pass
 
-    def handle_minecraft_server_output(self, pipename, line):
-        self.log(f'mc-{pipename}', line)
+    def handle_minecraft_server_output(self, line):
+        self._logparser.add_line(line)
+
+    def handle_minecraft_log_message(self, message):
+        logger.log(message.level[0], '{:s}'.format(message.message))
+        if isinstance(message, MinecraftServerStartMessage):
+            self.handle_minecraft_server_start(message.host, message.port)
+
+    def handle_minecraft_server_stderr(self, line):
+        logger.error(f'mc-stderr: {line}')
         
     def handle_terminal_input(self, line):
-        self.log('terminal', line)
+        logger.debug(f'terminal: {line}')
         if self._server_subprocess is None:
-            self.log('terminal', '!! Server not running, ignoring input !!')
+            logger.warn(f'terminal: Server not running, ignoring input!')
         else:
             self.send_to_mc(line)
 
     def handle_keyboard_interrupt(self):
-        self.log('terminal', 'KeyboardInterrupt')
+        logger.info('KeyboardInterrupt')
         self.stop_minecraft_server()
 
     def log(self, source, line):
         logger.info('{:10s}: {:s}'.format(source, line))
         
     def send_to_mc(self, command):
-        # self.log_traffic('to-server', command)
         if self._server_subprocess is None:
-            self.log('ERROR', '!! Server not running, ignoring input !!')
+            raise MinecraftServerWrapperException('Server not running, cannot send command to server.')
         else:
             self._wo_minecraft_stdin.send_line(command)
     
@@ -240,13 +252,15 @@ class MinecraftServerWrapper:
             self._serverloop.stop()
             return
         try:
+            self.handle_minecraft_server_stop()
             self.send_to_mc('/stop')
         except BrokenPipeError:
             pass
         # Set a timeout and then hard-kill the server
-        self._serverloop.call_after(30.0, self._server_subprocess.terminate)
+        self._serverloop.call_after(30.0, self.kill_minecraft_server)
 
     def kill_minecraft_server(self):
+        logger.warn('Killing Minecraft server...')
         self._server_subprocess.terminate()
         sleep(1.0)
         self._server_subprocess.kill()
@@ -261,8 +275,24 @@ class MinecraftServerWrapper:
             return False
         rc = self._server_subprocess.poll()
         if rc is not None:
-            self.log('mc-exit', 'Server exited with rc={:d}'.format(rc))
+            logger.info('Server exited with rc={:d}'.format(rc))
+            self.handle_minecraft_server_stop()
             self._serverloop.stop()
+    
+    def handle_minecraft_server_start(self, host, port):
+        if not self._server_info is None:
+            logger.warn('Server broadcast already started, re-registering.')
+            self.handle_minecraft_server_stop()
+        self._server_info = MinecraftServerInfo(self._server_name, port)
+        logger.warn('Starting server broadcast: {:s}'.format(str(self._server_info)))
+        self._lan_broadcaster.add_server(self._server_info)
+
+    def handle_minecraft_server_stop(self):
+        if self._server_info is None:
+            logger.warn('Server broadcast not started, ignoring.')
+            return
+        logger.warn('Stopping server broadcast: {:s}'.format(str(self._server_info)))
+        self._lan_broadcaster.remove_server(self._server_info)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
