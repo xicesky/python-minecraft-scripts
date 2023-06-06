@@ -296,4 +296,5 @@ class MinecraftServerWrapper:
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
+    logger.warning('Running this script directly is JUST FOR DEBUGGING')
     MinecraftServerWrapper().start()

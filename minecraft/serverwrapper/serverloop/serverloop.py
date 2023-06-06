@@ -277,6 +277,8 @@ class ServerLoop:
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
+    logger.warning('Running this script directly is JUST FOR DEBUGGING')
     print('This just quickly tests the ServerLoop class.')
     serverLoop = ServerLoop()
     serverLoop.call_after(1.0, lambda: print('Hello, world!'))

@@ -15,6 +15,7 @@ class MyColorFormatter(logging.Formatter):
     }
     # delegate = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(funcName)s:%(lineno)d - %(message)s")
     # delegate = logging.Formatter(fmt="%(asctime)s %(levelname)s %(message)s", style='%')
+    # delegate = logging.Formatter(style='{', fmt="{asctime} {levelname:10} {name:30} {message}")
     delegate = logging.Formatter(style='{', fmt="{asctime} {levelname:10} {message}")
     
     def __init__(self, delegate=None):
@@ -31,11 +32,12 @@ class MyColorFormatter(logging.Formatter):
         return self.delegate.format(self, record)
 
 
-def setup_logging():
+def setup_root_logger():
     # Set up logging
     root_logger = logging.getLogger()
     click_log.basic_config(root_logger)
     root_logger.setLevel(logging.INFO)
     root_logger.handlers[0].formatter = MyColorFormatter()
-    logger = logging.getLogger(__name__)
-    return logger
+    # Also reduce logging of a few other modules
+    logging.getLogger('libtmux.common').setLevel(logging.INFO)
+    return root_logger
