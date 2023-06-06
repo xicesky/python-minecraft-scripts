@@ -1,8 +1,10 @@
 
+import logging
 import socket
 import time
-
 from minecraft.serverwrapper.serverloop.serverloop import WaitingObject
+
+logger = logging.getLogger(__name__)
 
 class MinecraftServerInfo:
     name = None
@@ -41,11 +43,15 @@ class MinecraftServerLANBroadcaster(WaitingObject):
         self.send_broadcasts()
     
     def send_broadcasts(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            for server in self._servers:
-                msg = "[MOTD]%s[/MOTD][AD]%d[/AD]" % (server.name, server.port)
-                sock.sendto(bytes(msg, 'UTF-8'), (self._broadcast_ip, self._broadcast_port))
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                for server in self._servers:
+                    msg = "[MOTD]%s[/MOTD][AD]%d[/AD]" % (server.name, server.port)
+                    sock.sendto(bytes(msg, 'UTF-8'), (self._broadcast_ip, self._broadcast_port))
+        except OSError as e:
+            logger.error("Failed to send broadcast: %s" % e)
+            
     
     def add_server(self, server: MinecraftServerInfo):
         self._servers.append(server)

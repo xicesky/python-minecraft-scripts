@@ -214,7 +214,10 @@ class ServerLoop:
             if timeout is not None and timeout is not False:
                 if timeout <= self._current_tick:
                     count_timeouts += 1
-                    waiting_object.do_timeout()
+                    try:
+                        waiting_object.do_timeout()
+                    except Exception as e:
+                        logger.error(f'Exception in do_timeout() of {waiting_object}: {e}')
         return count_timeouts
 
     def main_loop(self) -> None:
@@ -241,11 +244,20 @@ class ServerLoop:
                 
                 # Handle I/O
                 for waiting_object in r:
-                    waiting_object.do_receive()
+                    try:
+                        waiting_object.do_receive()
+                    except Exception as e:
+                        logger.error(f'Exception in do_receive() of {waiting_object}: {e}')
                 for waiting_object in w:
-                    waiting_object.do_send()
+                    try:
+                        waiting_object.do_send()
+                    except Exception as e:
+                        logger.error(f'Exception in do_send() of {waiting_object}: {e}')
                 for waiting_object in x:
-                    waiting_object.do_exception()
+                    try:
+                        waiting_object.do_exception()
+                    except Exception as e:
+                        logger.error(f'Exception in do_exception() of {waiting_object}: {e}')
                 
                 # Handle idle timeout, if nothing happened
                 if len(r) == 0 and len(w) == 0 and len(x) == 0 and count_timeouts == 0:
@@ -264,7 +276,10 @@ class ServerLoop:
 
     def _run_callbacks(self, callback_name) -> None:
         for callback in self._callbacks[callback_name]:
-            callback()
+            try:
+                callback()
+            except Exception as e:
+                logger.error(f'Exception in {callback_name} callback {callback}: {e}')
     
     def on_idle_timeout(self) -> None:
         self._run_callbacks('on_idle_timeout')
