@@ -136,6 +136,7 @@ class MinecraftServerWrapper:
         return None
     
     def sync_modpack(self):
+        # TODO: Handle either zip file or "modpack"/"mods" directory
         mod_zip = self.find_modpack_zip(".")
         if mod_zip is None:
             # No modpack zip found
@@ -162,7 +163,9 @@ class MinecraftServerWrapper:
             if current_mod in modpack_mods:
                 continue
             logger.info('Removing mod {:s}...'.format(current_mod))
-            shutil.rmtree(mod_dir / current_mod)
+            # Remove jar file
+            # shutil.rmtree(mod_dir / current_mod)
+            os.remove(mod_dir / current_mod)
         for modpack_mod in modpack_mods:
             if modpack_mod in current_mods:
                 continue
