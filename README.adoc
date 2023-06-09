@@ -13,7 +13,6 @@ Markus Dangl
 Experimental minecraft-server control script.
 Features:
 
-* Starts self in a tmux session
 * Downloads fabric launcher
 * Syncs mods with mods directory from a zip file
 * Starts a fabric server
@@ -22,8 +21,6 @@ Features:
 == Missing features and bugs
 
 * Does not handle terminal input nicely
-* Does not check the server port yet
-* Broadcasts even before the server is up
 * Missing proper logging (logs a bunch of crap and should output as json and to a file)
 
 == TODO
@@ -31,3 +28,42 @@ Features:
 Use a library instead of writing my own async handling -- candidates:
 
 * https://twisted.org/
+
+== Installing
+
+Via git+pip:
+
+[source,shell]
+----
+git clone git@github.com:xicesky/python-minecraft-scripts.git
+cd python-minecraft-scripts
+pip install .
+minecraft-serverwrapper version
+----
+
+== Development
+
+I recommend using VS Code:
+
+* Install the Python extension
+* Create a virtual environment (CTRL+SHIFT+P -> Python: Create Virtual Environment)
+* Create a terminal (CTRL+SHIFT+P -> Python: Create Terminal) -- it should automatically activate the virtual environment
+* Then follow the instructions below
+
+Make sure you have python 3 (preferably 3.9 or later) and pip installed.
+
+[source,shell]
+----
+# Install up-to-date pipenv
+pip install pipenv --upgrade
+
+# Install dependencies
+pipenv install --dev
+
+# Run tests
+pipenv run pytest
+
+# Install into current python environment
+pipenv install -e .
+
+----

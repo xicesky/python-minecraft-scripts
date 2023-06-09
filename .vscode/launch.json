@@ -17,9 +17,7 @@
             "request": "launch",
             "module": "minecraft.serverwrapper.cli",
             "args": [
-                // "debug",
-                // "tmux",
-                "start",
+                "run",
             ],
             "justMyCode": false
         }

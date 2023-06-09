@@ -4,13 +4,13 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-libtmux = "*"
 click = "*"
 click-shell = "*"
 click-log = "*"
 colorama = "*"
 
 [dev-packages]
+pytest = "*"
 
 [requires]
 python_version = "3.10"

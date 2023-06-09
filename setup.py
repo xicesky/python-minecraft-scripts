@@ -8,7 +8,6 @@ setup(
     install_requires=[
         'colorama',
         'click',
-        'libtmux',
         'click-log',
         'click-shell',
     ],
