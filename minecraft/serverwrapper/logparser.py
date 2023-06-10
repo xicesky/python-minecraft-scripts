@@ -22,7 +22,7 @@ def parse_level(level: str) -> tuple[int, str]:
 class MinecraftLogMessage:
     level: tuple[int, str] = None
     message: str = None
-    
+
     def __init__(self, level: tuple[int, str] or str or None, message: str):
         if level is None:
             self.level = minecraft_log_levels['UNKNOWN']
@@ -33,7 +33,7 @@ class MinecraftLogMessage:
         else:
             raise ValueError('level must be a tuple of (int, str) or a string')
         self.message = message
-    
+
     def __str__(self):
         return '%s: %s' % (self.level[1], self.message)
 
@@ -41,12 +41,12 @@ class MinecraftLogMessage:
 class MinecraftServerStartMessage(MinecraftLogMessage):
     host: str = None
     port: int = None
-    
+
     def __init__(self, level: tuple[int, str] or str or None, message: str, host: str, port: int):
         super().__init__(level, message)
         self.host = host
         self.port = port
-    
+
     def __str__(self):
         return '%s: %s (%s:%d)' % (self.level[1], self.message, self.host, self.port)
 
@@ -65,7 +65,7 @@ class MinecraftLogParser:
     _normal_line_pattern = re.compile('\[([0-9]{2}:[0-9]{2}:[0-9]{2})\] \[(.*)/(.*)\]: (.*)')
     # Starting Minecraft server on *:25565
     _server_start_pattern = re.compile('Starting Minecraft server on ([^:]*):([0-9]*)')
-    
+
     def __init__(self, cb: callable):
         self._state = 0
         self._cb = cb
@@ -87,10 +87,10 @@ class MinecraftLogParser:
                 return self.handle_message(message)
             else:
                 return self.handle_message(MinecraftLogMessage(self._last_level, line))
-        
+
         raise NotImplementedError('state %d not implemented' % self._state)
-    
-    
+
+
     def handle_message(self, message: MinecraftLogMessage):
         m = self._server_start_pattern.match(message.message)
         if m:

@@ -17,7 +17,7 @@ class MyColorFormatter(logging.Formatter):
     # delegate = logging.Formatter(fmt="%(asctime)s %(levelname)s %(message)s", style='%')
     # delegate = logging.Formatter(style='{', fmt="{asctime} {levelname:10} {name:30} {message}")
     delegate = logging.Formatter(style='{', fmt="{asctime} {levelname:10} {message}")
-    
+
     def __init__(self, delegate=None):
         if delegate is not None:
             self.delegate = delegate

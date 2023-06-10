@@ -1,8 +1,9 @@
+---
 minecraft:
   type: fabric
   version: 1.19.2
   # If non-empty, the launcher jar will be downloaded from this URL
-  jar-url: ~
+  jar-url:
   server:
     broadcast-to-lan: true
     name: My Minecraft Server
@@ -17,8 +18,8 @@ minecraft:
 
 wrapper:
   # Java executable to use. If empty, uses java from PATH
-  java-executable-path: ~
+  java-executable-path:
   auto-accept-eula: true
   java-args:
     optimize-for-memory-mibs: 2048
-  working-directory: ~
+  working-directory:

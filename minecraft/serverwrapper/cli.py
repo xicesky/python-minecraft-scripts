@@ -18,7 +18,7 @@ class NotYetImplementedError(click.ClickException):
     """Exception raised when a command is not yet implemented
     """
     exit_code = 10
-    
+
     def __init__(self, message):
         super().__init__(message)
 

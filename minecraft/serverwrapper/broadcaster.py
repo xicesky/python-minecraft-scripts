@@ -16,10 +16,10 @@ class MinecraftServerInfo:
 
     def __eq__(self, other):
         return self.name == other.name and self.port == other.port
-    
+
     def __hash__(self):
         return hash((self.name, self.port))
-    
+
     def __str__(self):
         return '%s (*:%d)' % (self.name, self.port)
 
@@ -30,18 +30,18 @@ class MinecraftServerLANBroadcaster(WaitingObject):
     # Similar to RepeatedCallback
     _interval = None
     _target = None
-    
+
     def __init__(self, interval=1.0):
         self._interval = interval
         self._target = time.time() + interval
-        
+
     def is_waiting_for_timeout(self):
         return self._target
 
     def do_timeout(self):
         self._target = time.time() + self._interval
         self.send_broadcasts()
-    
+
     def send_broadcasts(self):
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -51,8 +51,8 @@ class MinecraftServerLANBroadcaster(WaitingObject):
                     sock.sendto(bytes(msg, 'UTF-8'), (self._broadcast_ip, self._broadcast_port))
         except OSError as e:
             logger.error("Failed to send broadcast: %s" % e)
-            
-    
+
+
     def add_server(self, server: MinecraftServerInfo):
         self._servers.append(server)
 

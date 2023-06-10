@@ -1,4 +1,4 @@
-    
+
 import logging
 import os
 from typing import Any, TextIO
@@ -11,19 +11,19 @@ class LineInputBuffer(WaitingObject):
     _handle: TextIO = None
     _buffer: str = ""
     _callback: callable = None
-    
+
     def __init__(self, handle: TextIO, callback: callable, name=None):
         super().__init__(name=name)
         self._handle = handle
         self._callback = callback
         os.set_blocking(self._handle.fileno(), False)
-        
+
     def fileno(self) -> int:
         return self._handle.fileno()
-    
+
     def is_waiting_to_receive(self) -> bool:
         return True
-    
+
     def do_receive(self) -> None:
         read_bytes = self._handle.read()
         if len(read_bytes) == 0:
@@ -46,7 +46,7 @@ class OutputBuffer(WaitingObject):
     _buffer: str = ""
     _callback: callable = None
     _error_callback: callable = None
-    
+
     def __init__(self, handle: TextIO, callback: callable = None, name=None):
         super().__init__(name=name)
         self._handle = handle
@@ -54,14 +54,14 @@ class OutputBuffer(WaitingObject):
         os.set_blocking(self._handle.fileno(), False)
 
     def set_error_callback(self, callback: callable) -> None:
-        self._error_callback = callback        
+        self._error_callback = callback
 
     def fileno(self) -> int:
         return self._handle.fileno()
-    
+
     def is_waiting_to_send(self) -> bool:
         return len(self._buffer) > 0
-    
+
     def do_send(self) -> None:
         try:
             written_bytes = self._handle.write(self._buffer)
@@ -69,7 +69,7 @@ class OutputBuffer(WaitingObject):
             if not self._error_callback is None:
                 self._error_callback(e)
             return
-            
+
         self._buffer = self._buffer[written_bytes:]
         if not self._callback is None:
             self._callback()
