@@ -166,5 +166,5 @@ cython_debug/
 # Minecraft server binaries + data
 /.minecraft-server
 /*.zip
-/minecraft-serverwrapper.yaml
+/minecraft.yaml
 

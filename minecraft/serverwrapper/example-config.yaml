@@ -5,4 +5,4 @@ minecraft:
 
 wrapper:
   java-args:
-    optimize-for-memory-use-gb: 4
+    optimize-for-memory-mibs: 8192

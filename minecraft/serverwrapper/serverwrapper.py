@@ -33,7 +33,7 @@ def find_mod_dir_in_zip(zip_file: zipfile.ZipFile, current_path: zipfile.Path = 
         raise MinecraftServerWrapperException('find_mod_dir_in_zip called with a non-directory path.')
     if (current_path / 'mods').is_dir():
         return current_path / 'mods'
-    
+
     # Check if there is only one directory in the current path
     dirs = [x for x in current_path.iterdir() if x.is_dir()]
     if len(dirs) == 1:
@@ -51,19 +51,16 @@ def copy_mod_from_zip(mod_path: zipfile.Path, dest_dir: Path):
             shutil.copyfileobj(srcf, destf)
 
 
-class MinecraftServerWrapperException(Exception):
-    pass
-
-
-class MinecraftServerWrapper:
-    _config: ConfigDict = None
-    _serverloop: ServerLoop = None
-    _working_dir: str = None
+def java_args_for_memory(memory_mibs: int) -> list[str]:
     # See https://www.oracle.com/java/technologies/javase/vmoptions-jsp.html
-    _java_args: list[str] = \
-        [   '-Xms8G'
-        ,   '-Xmx8G'
-        ,   '-Xmn512m'
+    memory_mibs = int(memory_mibs)
+    smaller_memory_mibs = memory_mibs >> 4
+    # if smaller_memory_mibs < 128:
+    #     smaller_memory_mibs = 128
+    return \
+        [   f'-Xms{memory_mibs}m'
+        ,   f'-Xmx{memory_mibs}m'
+        ,   f'-Xmn{smaller_memory_mibs}m'
         ,   '-XX:+UnlockExperimentalVMOptions'
         ,   '-XX:+DisableExplicitGC'
         ,   '-XX:+UseG1GC'
@@ -73,6 +70,16 @@ class MinecraftServerWrapper:
         ,   '-XX:G1HeapRegionSize=16M'
         # ,   '-Xnoclassgc'                 # I really don't recommend using this
         ]
+
+
+class MinecraftServerWrapperException(Exception):
+    pass
+
+
+class MinecraftServerWrapper:
+    _config: ConfigDict = None
+    _serverloop: ServerLoop = None
+    _working_dir: str = None
     _current_jar_path: str = None
     _server_subprocess: subprocess = None
     _wo_tick: RepeatedCallback = None
@@ -83,12 +90,12 @@ class MinecraftServerWrapper:
     _lan_broadcaster: MinecraftServerLANBroadcaster = None
     _server_info = None
     _logparser: MinecraftLogParser = None
-    
+
     def __init__(self, config: ConfigDict = None):
         if config is None:
             # Check if file exists
-            if os.path.exists('minecraft-serverwrapper.yaml'):
-                config = ConfigDict.load_from_yaml_file("minecraft-serverwrapper.yaml")
+            if os.path.exists('minecraft.yaml'):
+                config = ConfigDict.load_from_yaml_file("minecraft.yaml")
         self._config = ConfigDict.default_config() | (config or {})
         self._working_dir = self._config['wrapper']['working-directory'] or os.getcwd() + '/.minecraft-server'
         self._java_executable_path = self._config['wrapper']['java-executable-path']
@@ -99,7 +106,7 @@ class MinecraftServerWrapper:
         if self._config['minecraft']['server']['broadcast-to-lan']:
             self._lan_broadcaster = MinecraftServerLANBroadcaster()
         self._logparser = MinecraftLogParser(self.handle_minecraft_log_message)
-    
+
     def start(self):
         logger.info('Starting Minecraft server wrapper...')
         self.create_working_dir()
@@ -108,12 +115,12 @@ class MinecraftServerWrapper:
         if self._config['wrapper']['auto-accept-eula']:
             self.accept_eula()
         self.download_launcher()
-        
+
         sl = self._serverloop = ServerLoop()
         self._wo_terminal_stdin = sl.add_waiting_object(LineInputBuffer(sys.stdin, self.handle_terminal_input, name='terminal'))
         self._wo_tick = sl.call_repeatedly(1.0, self.tick, name='tick')
         sl.call_on_keyboard_interrupt(self.stop_minecraft_server, name='keyboard-interrupt')
-        
+
         sl.call_after(1.0, self.start_minecraft_server)
         if self._lan_broadcaster is not None:
             sl.add_waiting_object(self._lan_broadcaster)
@@ -141,7 +148,7 @@ class MinecraftServerWrapper:
         elif len(zip_files) == 1:
             return zip_files[0]
         return None
-    
+
     def sync_modpack(self):
         # TODO: Handle either zip file or "modpack"/"mods" directory
         mod_zip = self.find_modpack_zip(".")
@@ -215,15 +222,19 @@ class MinecraftServerWrapper:
 
     def start_minecraft_server(self):
         # commandline = ['cat']
-        commandline = [self._java_executable_path] + self._java_args + ['-jar', self._current_jar_path, 'nogui']
-        
+        commandline = [self._java_executable_path] \
+            + java_args_for_memory(int(self._config.wrapper['java-args']['optimize-for-memory-mibs'])) \
+            + ['-jar', self._current_jar_path, 'nogui']
+        logger.info('Starting Minecraft server with the following command line:')
+        for arg in commandline:
+            logger.info('    {:s}'.format(arg))
         self._server_subprocess = subprocess.Popen(commandline, cwd=self._working_dir, bufsize=1, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         sl = self._serverloop
         self._wo_minecraft_stdin = sl.add_waiting_object(OutputBuffer(self._server_subprocess.stdin, name='minecraft-stdin'))
         self._wo_minecraft_stdout = sl.add_waiting_object(LineInputBuffer(self._server_subprocess.stdout, lambda line: self.handle_minecraft_server_output(line), name='minecraft-stdout'))
         self._wo_minecraft_stderr = sl.add_waiting_object(LineInputBuffer(self._server_subprocess.stderr, lambda line: self.handle_minecraft_server_stderr(line), name='minecraft-stderr'))
         sl.call_repeatedly(1.0, self.check_minecraft_server, name='check-minecraft-server')
-        
+
     def tick(self):
         logger.debug('tick')
         pass
@@ -238,7 +249,7 @@ class MinecraftServerWrapper:
 
     def handle_minecraft_server_stderr(self, line):
         logger.error(f'mc-stderr: {line}')
-        
+
     def handle_terminal_input(self, line):
         logger.debug(f'terminal: {line}')
         if self._server_subprocess is None:
@@ -252,13 +263,13 @@ class MinecraftServerWrapper:
 
     def log(self, source, line):
         logger.info('{:10s}: {:s}'.format(source, line))
-        
+
     def send_to_mc(self, command):
         if self._server_subprocess is None:
             raise MinecraftServerWrapperException('Server not running, cannot send command to server.')
         else:
             self._wo_minecraft_stdin.send_line(command)
-    
+
     def stop_minecraft_server(self):
         if self._server_subprocess is None:
             # FIXME: This does not really belong here but should be an async construct called after the server stops
@@ -282,7 +293,7 @@ class MinecraftServerWrapper:
         self._server_subprocess = None
         # FIXME: This does not really belong here but should be an async construct called after the server stops
         self._serverloop.stop()
-        
+
     def check_minecraft_server(self):
         if self._server_subprocess is None:
             return False
@@ -291,7 +302,7 @@ class MinecraftServerWrapper:
             logger.info('Server exited with rc={:d}'.format(rc))
             self.handle_minecraft_server_stop()
             self._serverloop.stop()
-    
+
     def handle_minecraft_server_start(self, host, port):
         if self._server_info is not None:
             logger.warn('Server broadcast already started, re-registering.')

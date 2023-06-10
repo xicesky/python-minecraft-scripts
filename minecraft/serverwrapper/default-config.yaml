@@ -20,5 +20,5 @@ wrapper:
   java-executable-path: ~
   auto-accept-eula: true
   java-args:
-    optimize-for-memory-use-gb: 2
+    optimize-for-memory-mibs: 2048
   working-directory: ~
