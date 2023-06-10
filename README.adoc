@@ -79,6 +79,9 @@ $ pip install pipenv --upgrade
 Install dependencies
 $ pipenv install --dev
 
+Install pre-commit hook
+$ pipenv run pre-commit install
+
 Run tests
 $ pipenv run pytest
 
