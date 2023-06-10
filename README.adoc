@@ -33,27 +33,30 @@ Use a library instead of writing my own async handling -- candidates:
 
 Via git+pip:
 
-[source,shell]
+[source,console]
 ----
-git clone git@github.com:xicesky/python-minecraft-scripts.git
-cd python-minecraft-scripts
-pip install .
-minecraft-serverwrapper version
+$ git clone git@github.com:xicesky/python-minecraft-scripts.git
+$ cd python-minecraft-scripts
+$ pip install .
+$ minecraft-serverwrapper version
 
 ----
 
 == Basic usage
 
-[source,shell]
+[source,console]
 ----
-# Set up a config file
-minecraft-serverwrapper config print-default > minecraft-serverwrapper.yaml
-# Edit the config file, remove all lines that you don't want to change
-editor minecraft-serverwrapper.yaml
-# Check the final configuration
-minecraft-serverwrapper config print
-# Aaaaaand go!
-minecraft-serverwrapper run
+Set up a config file
+$ minecraft-serverwrapper config print-default > minecraft-serverwrapper.yaml
+
+Edit the config file, remove all lines that you don't want to change
+$ editor minecraft-serverwrapper.yaml
+
+Check the final configuration
+$ minecraft-serverwrapper config print
+
+Aaaaaand go!
+$ minecraft-serverwrapper run
 
 ----
 
@@ -68,21 +71,21 @@ I recommend using VS Code:
 
 Make sure you have python 3.10 or later and pip installed.
 
-[source,shell]
+[source,console]
 ----
-# Install up-to-date pipenv
-pip install pipenv --upgrade
+Install up-to-date pipenv
+$ pip install pipenv --upgrade
 
-# Install dependencies
-pipenv install --dev
+Install dependencies
+$ pipenv install --dev
 
-# Run tests
-pipenv run pytest
+Run tests
+$ pipenv run pytest
 
-# Run script from the shell
-pipenv run minecraft-serverwrapper version
+Run script from the shell
+$ pipenv run minecraft-serverwrapper version
 
-# You can try to install the script in editable mode, but it doesn't always work well
-pip install -e .
+You can try to install the script in editable mode, but it doesn't always work well
+$ pip install -e .
 
 ----
