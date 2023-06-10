@@ -12,6 +12,8 @@ from minecraft.serverwrapper.config import ConfigDict
 from minecraft.serverwrapper.logparser import MinecraftLogParser, MinecraftServerStartMessage
 from minecraft.serverwrapper.serverloop.buffers import LineInputBuffer, OutputBuffer
 from minecraft.serverwrapper.serverloop.serverloop import RepeatedCallback, ServerLoop
+from minecraft.serverwrapper.util.archive import copy_mod_from_zip, deepsearch_for_mods_dir
+from minecraft.serverwrapper.util.exceptions import MinecraftServerWrapperException
 
 logger = logging.getLogger(__name__)
 
@@ -24,31 +26,6 @@ def fabric_server_url(minecraft_version, loader_version, launcher_version):
 
 def fabric_server_jar_name(minecraft_version, loader_version, launcher_version):
     return f'fabric-server-mc.{minecraft_version}-loader.{loader_version}-launcher.{launcher_version}.jar'
-
-
-def find_mod_dir_in_zip(zip_file: zipfile.ZipFile, current_path: zipfile.Path = None) -> zipfile.Path or None:
-    if current_path is None:
-        current_path = zipfile.Path(zip_file)
-    if not current_path.is_dir():
-        raise MinecraftServerWrapperException('find_mod_dir_in_zip called with a non-directory path.')
-    if (current_path / 'mods').is_dir():
-        return current_path / 'mods'
-
-    # Check if there is only one directory in the current path
-    dirs = [x for x in current_path.iterdir() if x.is_dir()]
-    if len(dirs) == 1:
-        # There is only one directory in the current path, so we can just go down one level
-        return find_mod_dir_in_zip(zip_file, dirs[0])
-    # Check for ony of the following directories: .minecraft
-    if (current_path / '.minecraft').is_dir():
-        return find_mod_dir_in_zip(zip_file, current_path / '.minecraft')
-    return None
-
-
-def copy_mod_from_zip(mod_path: zipfile.Path, dest_dir: Path):
-    with open(dest_dir / mod_path.name, 'wb') as destf:
-        with mod_path.open('rb') as srcf:
-            shutil.copyfileobj(srcf, destf)
 
 
 def java_args_for_memory(memory_mibs: int) -> list[str]:
@@ -70,10 +47,6 @@ def java_args_for_memory(memory_mibs: int) -> list[str]:
         ,   '-XX:G1HeapRegionSize=16M'
         # ,   '-Xnoclassgc'                 # I really don't recommend using this
         ]
-
-
-class MinecraftServerWrapperException(Exception):
-    pass
 
 
 class MinecraftServerWrapper:
@@ -133,35 +106,12 @@ class MinecraftServerWrapper:
         else:
             logger.info('Working directory already exists, skipping creation.')
 
-    def find_modpack_zip(self, directory) -> str or None:
-        # Find zip file
-        zip_files = []
-        for file in os.listdir('.'):
-            if not file.endswith('.zip'):
-                continue
-            if not zipfile.is_zipfile(file):
-                logger.warning('Found file {:s} that is not a valid zip file, skipping.'.format(file))
-                continue
-            zip_files.append(file)
-        if len(zip_files) > 1:
-            raise MinecraftServerWrapperException('Found more than one zip file in current directory.')
-        elif len(zip_files) == 1:
-            return zip_files[0]
-        return None
-
     def sync_modpack(self):
-        # TODO: Handle either zip file or "modpack"/"mods" directory
-        mod_zip = self.find_modpack_zip(".")
-        if mod_zip is None:
-            # No modpack zip found
-            logger.info('No modpack zip found, not syncing mods.')
-            return
-        modpack_mod_dir = find_mod_dir_in_zip(mod_zip)
+        modpack_mod_dir = deepsearch_for_mods_dir(".")
         if modpack_mod_dir is None:
             logger.info('No mods directory found in modpack zip, not syncing mods.')
             return
-        filename = str(modpack_mod_dir.filename)
-        logger.info('Syncing mods from {:s}'.format(filename))
+        logger.info('Syncing mods from {:s}'.format(str(modpack_mod_dir)))
         mod_dir = Path(self._working_dir) / 'mods'
         if not mod_dir.exists():
             logger.info('Creating mods directory: {:s}'.format(str(mod_dir)))

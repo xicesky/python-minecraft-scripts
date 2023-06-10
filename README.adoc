@@ -91,4 +91,8 @@ $ pipenv run minecraft-serverwrapper version
 You can try to install the script in editable mode, but it doesn't always work well
 $ pip install -e .
 
+Also, update pre-commit hooks from time to time:
+$ pre-commit autoupdate
+$ pre-commit run --all-files
+$ git add -A && git commit -m "Update pre-commit hooks"
 ----

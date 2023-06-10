@@ -69,6 +69,22 @@ def config():
 config.add_command(show_default_config)
 config.add_command(show_current_config)
 
+@click.command(name='sync')
+def sync_modpack():
+    """Synchronizes provided modpack with the server
+    """
+    MinecraftServerWrapper().sync_modpack()
+
+
+@click.group()
+def modpack():
+    """Commands for managing the modpack
+    """
+    pass
+
+
+modpack.add_command(sync_modpack)
+
 
 @click.group()
 def cli():
@@ -78,6 +94,7 @@ def cli():
 
 
 cli.add_command(config)
+cli.add_command(modpack)
 cli.add_command(run)
 cli.add_command(version)
 

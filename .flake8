@@ -3,5 +3,7 @@ extend-ignore =
     # disable E501: line too long
     E501,
     # disable whitespace warnings around parentheses (we use haskell-style indentation sometimes)
-    E124, E128, E201, E203
+    E124, E128, E201, E203,
+    # disable W391: blank line at end of file
+    W391
 max-line-length = 120
