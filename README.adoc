@@ -39,6 +39,22 @@ git clone git@github.com:xicesky/python-minecraft-scripts.git
 cd python-minecraft-scripts
 pip install .
 minecraft-serverwrapper version
+
+----
+
+== Basic usage
+
+[source,shell]
+----
+# Set up a config file
+minecraft-serverwrapper config print-default > minecraft-serverwrapper.yaml
+# Edit the config file, remove all lines that you don't want to change
+editor minecraft-serverwrapper.yaml
+# Check the final configuration
+minecraft-serverwrapper config print
+# Aaaaaand go!
+minecraft-serverwrapper run
+
 ----
 
 == Development
@@ -50,7 +66,7 @@ I recommend using VS Code:
 * Create a terminal (CTRL+SHIFT+P -> Python: Create Terminal) -- it should automatically activate the virtual environment
 * Then follow the instructions below
 
-Make sure you have python 3 (preferably 3.9 or later) and pip installed.
+Make sure you have python 3.10 or later and pip installed.
 
 [source,shell]
 ----
@@ -63,7 +79,10 @@ pipenv install --dev
 # Run tests
 pipenv run pytest
 
-# Install into current python environment
-pipenv install -e .
+# Run script from the shell
+pipenv run minecraft-serverwrapper version
+
+# You can try to install the script in editable mode, but it doesn't always work well
+pip install -e .
 
 ----

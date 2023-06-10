@@ -4,12 +4,15 @@
 import logging
 import click
 import click_log
+import pkg_resources  # part of setuptools
+from minecraft.serverwrapper.config import get_default_config_string
 from minecraft.serverwrapper.serverwrapper import MinecraftServerWrapper
 from minecraft.serverwrapper.util.logging import setup_root_logger
 
 # Set up logging
 root_logger = setup_root_logger()
 logger = logging.getLogger(__name__)
+
 
 class NotYetImplementedError(click.ClickException):
     """Exception raised when a command is not yet implemented
@@ -25,27 +28,47 @@ def run():
     """Runs the server in the foreground
     """
     MinecraftServerWrapper().start()
-    
+
+
+def format_version(package):
+    version = pkg_resources.require(package)[0].version
+    return '{:40} {:}'.format(package, version)
+
 @click.command()
 @click_log.simple_verbosity_option(root_logger)
 def version():
     """Prints the version of this script and included libraries
     """
     # TODO: Add git hash at "build time" and print it here
-    import pkg_resources  # part of setuptools
     # TODO: Automatically get the package names from the Pipfile
-    package='minecraft-serverwrapper'
-    version = pkg_resources.require(package)[0].version
-    print('{:40} {:}'.format(package, version))    
-    for package in ['click']:
-        version = pkg_resources.require(package)[0].version
-        print('{:40} {:}'.format(package, version))
+    print(format_version('minecraft-serverwrapper'))
+    print('')
+    print('Used libraries:')
+    for package in ['pyyaml', 'colorama', 'click']:
+        print(format_version(package))
+
+@click.command(name='show-default')
+def show_default_config():
+    """Prints the default configuration
+    """
+    print(get_default_config_string())
+
+@click.command(name='show')
+def show_current_config():
+    """Prints the current configuration
+    """
+    print(MinecraftServerWrapper()._config.to_yaml())
 
 @click.group()
-def debug():
-    """Debug commands
+def config():
+    """Commands for managing the configuration
     """
     pass
+
+
+config.add_command(show_default_config)
+config.add_command(show_current_config)
+
 
 @click.group()
 def cli():
@@ -53,9 +76,10 @@ def cli():
     """
     pass
 
+
+cli.add_command(config)
 cli.add_command(run)
 cli.add_command(version)
-cli.add_command(debug)
 
 if __name__ == '__main__':
     cli()

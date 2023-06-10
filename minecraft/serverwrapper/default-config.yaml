@@ -1,0 +1,24 @@
+minecraft:
+  type: fabric
+  version: 1.19.2
+  # If non-empty, the launcher jar will be downloaded from this URL
+  jar-url: ~
+  server:
+    broadcast-to-lan: true
+    name: My Minecraft Server
+    # FIXME: NYI
+    # override-properties:
+    #   white-list: true
+  fabric:
+    loader-version: 0.14.17
+    launcher-version: 0.11.2
+  modpack:
+    auto-load: true
+
+wrapper:
+  # Java executable to use. If empty, uses java from PATH
+  java-executable-path: ~
+  auto-accept-eula: true
+  java-args:
+    optimize-for-memory-use-gb: 2
+  working-directory: ~

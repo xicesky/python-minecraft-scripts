@@ -8,19 +8,23 @@ import shutil
 from time import sleep
 import zipfile
 from minecraft.serverwrapper.broadcaster import MinecraftServerInfo, MinecraftServerLANBroadcaster
+from minecraft.serverwrapper.config import ConfigDict
 from minecraft.serverwrapper.logparser import MinecraftLogParser, MinecraftServerStartMessage
 from minecraft.serverwrapper.serverloop.buffers import LineInputBuffer, OutputBuffer
-from minecraft.serverwrapper.serverloop.serverloop import RepeatedCallback, ServerLoop, WaitingObject
+from minecraft.serverwrapper.serverloop.serverloop import RepeatedCallback, ServerLoop
 
 logger = logging.getLogger(__name__)
+
 
 # Fabric server urls are built like this:
 # https://meta.fabricmc.net/v2/versions/loader/1.19.2/0.14.17/0.11.2/server/jar
 def fabric_server_url(minecraft_version, loader_version, launcher_version):
     return f'https://meta.fabricmc.net/v2/versions/loader/{minecraft_version}/{loader_version}/{launcher_version}/server/jar'
 
+
 def fabric_server_jar_name(minecraft_version, loader_version, launcher_version):
     return f'fabric-server-mc.{minecraft_version}-loader.{loader_version}-launcher.{launcher_version}.jar'
+
 
 def find_mod_dir_in_zip(zip_file: zipfile.ZipFile, current_path: zipfile.Path = None) -> zipfile.Path or None:
     if current_path is None:
@@ -40,25 +44,23 @@ def find_mod_dir_in_zip(zip_file: zipfile.ZipFile, current_path: zipfile.Path = 
         return find_mod_dir_in_zip(zip_file, current_path / '.minecraft')
     return None
 
+
 def copy_mod_from_zip(mod_path: zipfile.Path, dest_dir: Path):
     with open(dest_dir / mod_path.name, 'wb') as destf:
         with mod_path.open('rb') as srcf:
             shutil.copyfileobj(srcf, destf)
+
 
 class MinecraftServerWrapperException(Exception):
     pass
 
 
 class MinecraftServerWrapper:
-    _serverloop : ServerLoop = None
-    _working_dir : str = None
-    _minecraft_version : str = '1.19.2'
-    _fabric_loader_version : str = '0.14.17'
-    _fabric_launcher_version : str = '0.11.2'
-    _auto_accept_eula : bool = True
-    _java_executable_path : str = None
+    _config: ConfigDict = None
+    _serverloop: ServerLoop = None
+    _working_dir: str = None
     # See https://www.oracle.com/java/technologies/javase/vmoptions-jsp.html
-    _java_args : list[str] = \
+    _java_args: list[str] = \
         [   '-Xms8G'
         ,   '-Xmx8G'
         ,   '-Xmn512m'
@@ -71,34 +73,39 @@ class MinecraftServerWrapper:
         ,   '-XX:G1HeapRegionSize=16M'
         # ,   '-Xnoclassgc'                 # I really don't recommend using this
         ]
-    _current_jar_path : str = None
-    _server_subprocess : subprocess = None
-    _wo_tick : RepeatedCallback = None
-    _wo_terminal_stdin : OutputBuffer = None
-    _wo_minecraft_stdin : LineInputBuffer = None
-    _wo_minecraft_stdout : LineInputBuffer = None
-    _wo_minecraft_stderr : LineInputBuffer = None
-    _lan_broadcaster : MinecraftServerLANBroadcaster = None
-    _server_name = "Moritz' Minecraft Server"
+    _current_jar_path: str = None
+    _server_subprocess: subprocess = None
+    _wo_tick: RepeatedCallback = None
+    _wo_terminal_stdin: OutputBuffer = None
+    _wo_minecraft_stdin: LineInputBuffer = None
+    _wo_minecraft_stdout: LineInputBuffer = None
+    _wo_minecraft_stderr: LineInputBuffer = None
+    _lan_broadcaster: MinecraftServerLANBroadcaster = None
     _server_info = None
-    _autoload_modpack : bool = True
-    _logparser : MinecraftLogParser = None
+    _logparser: MinecraftLogParser = None
     
-    def __init__(self):
-        if self._working_dir is None:
-            self._working_dir = os.getcwd() + '/.minecraft-server'
+    def __init__(self, config: ConfigDict = None):
+        if config is None:
+            # Check if file exists
+            if os.path.exists('minecraft-serverwrapper.yaml'):
+                config = ConfigDict.load_from_yaml_file("minecraft-serverwrapper.yaml")
+        self._config = ConfigDict.default_config() | (config or {})
+        self._working_dir = self._config['wrapper']['working-directory'] or os.getcwd() + '/.minecraft-server'
+        self._java_executable_path = self._config['wrapper']['java-executable-path']
         if self._java_executable_path is None:
             self._java_executable_path = shutil.which('java')
         if not os.path.exists(self._java_executable_path):
             raise MinecraftServerWrapperException('Java executable not found.')
-        self._lan_broadcaster = MinecraftServerLANBroadcaster()
+        if self._config['minecraft']['server']['broadcast-to-lan']:
+            self._lan_broadcaster = MinecraftServerLANBroadcaster()
         self._logparser = MinecraftLogParser(self.handle_minecraft_log_message)
     
     def start(self):
         logger.info('Starting Minecraft server wrapper...')
         self.create_working_dir()
-        self.sync_modpack()
-        if self._auto_accept_eula:
+        if self._config['minecraft']['modpack']['auto-load']:
+            self.sync_modpack()
+        if self._config['wrapper']['auto-accept-eula']:
             self.accept_eula()
         self.download_launcher()
         
@@ -108,8 +115,8 @@ class MinecraftServerWrapper:
         sl.call_on_keyboard_interrupt(self.stop_minecraft_server, name='keyboard-interrupt')
         
         sl.call_after(1.0, self.start_minecraft_server)
-        # FIXME: Start LAN broadcaster only after finding out the server port
-        sl.add_waiting_object(self._lan_broadcaster)
+        if self._lan_broadcaster is not None:
+            sl.add_waiting_object(self._lan_broadcaster)
         sl.run()
 
     def create_working_dir(self):
@@ -190,13 +197,16 @@ class MinecraftServerWrapper:
                 f.write('eula=true\n')
 
     def download_launcher(self):
+        minecraft_version = self._config['minecraft']['version']
+        fabric_loader_version = self._config['minecraft']['fabric']['loader-version']
+        fabric_launcher_version = self._config['minecraft']['fabric']['launcher-version']
         if self._current_jar_path is None:
-            self._current_jar_path = self._working_dir + '/' + fabric_server_jar_name(self._minecraft_version, self._fabric_loader_version, self._fabric_launcher_version)
+            self._current_jar_path = self._working_dir + '/' + fabric_server_jar_name(minecraft_version, fabric_loader_version, fabric_launcher_version)
         if os.path.exists(self._current_jar_path):
             logger.info('Launcher jar already exists, skipping download.')
         else:
             logger.info('Downloading launcher jar...')
-            r = os.system(f'wget -O "{self._current_jar_path}" "{fabric_server_url(self._minecraft_version, self._fabric_loader_version, self._fabric_launcher_version)}"')
+            r = os.system(f'wget -O "{self._current_jar_path}" "{fabric_server_url(minecraft_version, fabric_loader_version, fabric_launcher_version)}"')
             if r != 0:
                 raise MinecraftServerWrapperException(f'Failed to download launcher jar (wget returned non-zero exit code: {r}).')
             # Check if download was successful
@@ -204,7 +214,7 @@ class MinecraftServerWrapper:
                 raise MinecraftServerWrapperException(f'Failed to download launcher jar: File {self._current_jar_path} does not exist.')
 
     def start_minecraft_server(self):
-        #commandline = ['cat']
+        # commandline = ['cat']
         commandline = [self._java_executable_path] + self._java_args + ['-jar', self._current_jar_path, 'nogui']
         
         self._server_subprocess = subprocess.Popen(commandline, cwd=self._working_dir, bufsize=1, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
@@ -232,7 +242,7 @@ class MinecraftServerWrapper:
     def handle_terminal_input(self, line):
         logger.debug(f'terminal: {line}')
         if self._server_subprocess is None:
-            logger.warn(f'terminal: Server not running, ignoring input!')
+            logger.warn('terminal: Server not running, ignoring input!')
         else:
             self.send_to_mc(line)
 
@@ -283,19 +293,22 @@ class MinecraftServerWrapper:
             self._serverloop.stop()
     
     def handle_minecraft_server_start(self, host, port):
-        if not self._server_info is None:
+        if self._server_info is not None:
             logger.warn('Server broadcast already started, re-registering.')
             self.handle_minecraft_server_stop()
-        self._server_info = MinecraftServerInfo(self._server_name, port)
-        logger.warn('Starting server broadcast: {:s}'.format(str(self._server_info)))
-        self._lan_broadcaster.add_server(self._server_info)
+        self._server_info = MinecraftServerInfo(self._config['minecraft']['server']['name'], port)
+        if self._lan_broadcaster is not None:
+            logger.warn('Starting server broadcast: {:s}'.format(str(self._server_info)))
+            self._lan_broadcaster.add_server(self._server_info)
 
     def handle_minecraft_server_stop(self):
         if self._server_info is None:
             logger.warn('Server broadcast not started, ignoring.')
             return
-        logger.warn('Stopping server broadcast: {:s}'.format(str(self._server_info)))
-        self._lan_broadcaster.remove_server(self._server_info)
+        if self._lan_broadcaster is not None:
+            logger.warn('Stopping server broadcast: {:s}'.format(str(self._server_info)))
+            self._lan_broadcaster.remove_server(self._server_info)
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)

@@ -1,0 +1,8 @@
+minecraft:
+  type: fabric
+  version: 1.19.2
+  server.name: Local Development Server
+
+wrapper:
+  java-args:
+    optimize-for-memory-use-gb: 4

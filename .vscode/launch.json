@@ -5,13 +5,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "minecraft.serverwrapper.serverwrapper",
-            "type": "python",
-            "request": "launch",
-            "module": "minecraft.serverwrapper.serverwrapper",
-            "justMyCode": false
-        },
-        {
             "name": "minecraft.serverwrapper.cli",
             "type": "python",
             "request": "launch",
@@ -20,6 +13,20 @@
                 "run",
             ],
             "justMyCode": false
-        }
+        },
+        {
+            "name": "minecraft.serverwrapper.config",
+            "type": "python",
+            "request": "launch",
+            "module": "minecraft.serverwrapper.config",
+            "justMyCode": false
+        },
+        {
+            "name": "minecraft.serverwrapper.serverwrapper",
+            "type": "python",
+            "request": "launch",
+            "module": "minecraft.serverwrapper.serverwrapper",
+            "justMyCode": false
+        },
     ]
 }
