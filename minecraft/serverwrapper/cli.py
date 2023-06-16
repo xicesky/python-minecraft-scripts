@@ -8,6 +8,7 @@ import pkg_resources  # part of setuptools
 from minecraft.serverwrapper.config import get_default_config_string
 from minecraft.serverwrapper.serverwrapper import MinecraftServerWrapper
 from minecraft.serverwrapper.util.logging import setup_root_logger
+from minecraft.serverwrapper.experiments.twisted import run_experiment
 
 # Set up logging
 root_logger = setup_root_logger()
@@ -46,6 +47,10 @@ def version():
     print('Used libraries:')
     for package in ['pyyaml', 'colorama', 'click']:
         print(format_version(package))
+
+@click.command()
+def experiment():
+    run_experiment()
 
 @click.command(name='show-default')
 def show_default_config():
@@ -97,6 +102,7 @@ cli.add_command(config)
 cli.add_command(modpack)
 cli.add_command(run)
 cli.add_command(version)
+cli.add_command(experiment)
 
 if __name__ == '__main__':
     cli()

@@ -15,6 +15,16 @@
             "justMyCode": false
         },
         {
+            "name": "minecraft.serverwrapper.experiment",
+            "type": "python",
+            "request": "launch",
+            "module": "minecraft.serverwrapper.cli",
+            "args": [
+                "experiment",
+            ],
+            "justMyCode": false
+        },
+        {
             "name": "minecraft.serverwrapper.config",
             "type": "python",
             "request": "launch",

@@ -23,12 +23,6 @@ Features:
 * Does not handle terminal input nicely
 * Missing proper logging (logs a bunch of crap and should output as json and to a file)
 
-== TODO
-
-Use a library instead of writing my own async handling -- candidates:
-
-* https://twisted.org/
-
 == Installing
 
 Via git+pip:
