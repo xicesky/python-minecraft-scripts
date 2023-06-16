@@ -11,7 +11,7 @@ minecraft:
     # override-properties:
     #   white-list: true
   fabric:
-    loader-version: 0.14.17
+    loader-version: 0.14.21
     launcher-version: 0.11.2
   modpack:
     auto-load: true

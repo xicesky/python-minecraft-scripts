@@ -109,7 +109,7 @@ class MinecraftServerWrapper:
     def sync_modpack(self):
         modpack_mod_dir = deepsearch_for_mods_dir(".")
         if modpack_mod_dir is None:
-            logger.info('No mods directory found in modpack zip, not syncing mods.')
+            logger.info('No mods directory or modpack zip found, not syncing mods.')
             return
         logger.info('Syncing mods from {:s}'.format(str(modpack_mod_dir)))
         mod_dir = Path(self._working_dir) / 'mods'
