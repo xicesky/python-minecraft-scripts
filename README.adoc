@@ -47,13 +47,13 @@ $ minecraft-serverwrapper version
 [source,console]
 ----
 Set up a config file
-$ minecraft-serverwrapper config print-default > minecraft.yaml
+$ minecraft-serverwrapper config show-default > minecraft.yaml
 
 Edit the config file, remove all lines that you don't want to change
 $ editor minecraft.yaml
 
 Check the final configuration
-$ minecraft-serverwrapper config print
+$ minecraft-serverwrapper config show
 
 Aaaaaand go!
 $ minecraft-serverwrapper run
