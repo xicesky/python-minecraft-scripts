@@ -11,6 +11,7 @@ from minecraft.serverwrapper.broadcaster import MinecraftServerInfo, MinecraftSe
 from minecraft.serverwrapper.config import ConfigDict
 from minecraft.serverwrapper.logparser import MinecraftLogParser, MinecraftServerStartMessage
 from minecraft.serverwrapper.serverloop.buffers import LineInputBuffer, OutputBuffer
+from minecraft.serverwrapper.serverloop.process import Process
 from minecraft.serverwrapper.serverloop.serverloop import RepeatedCallback, ServerLoop
 from minecraft.serverwrapper.util.archive import copy_mod_from_zip, deepsearch_for_mods_dir
 from minecraft.serverwrapper.util.exceptions import MinecraftServerWrapperException
@@ -178,6 +179,8 @@ class MinecraftServerWrapper:
         logger.info('Starting Minecraft server with the following command line:')
         for arg in commandline:
             logger.info('    {:s}'.format(arg))
+        self._minecraft = Process(self._serverloop, self._working_dir, commandline)
+
         self._server_subprocess = subprocess.Popen(commandline, cwd=self._working_dir, bufsize=1, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         sl = self._serverloop
         self._wo_minecraft_stdin = sl.add_waiting_object(OutputBuffer(self._server_subprocess.stdin, name='minecraft-stdin'))

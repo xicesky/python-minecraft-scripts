@@ -46,6 +46,7 @@ class OutputBuffer(WaitingObject):
     _buffer: str = ""
     _callback: callable = None
     _error_callback: callable = None
+    _close_after_send: bool = False
 
     def __init__(self, handle: TextIO, callback: callable = None, name=None):
         super().__init__(name=name)
@@ -66,16 +67,32 @@ class OutputBuffer(WaitingObject):
         try:
             written_bytes = self._handle.write(self._buffer)
         except BrokenPipeError as e:
-            if not self._error_callback is None:
+            if self._error_callback is not None:
                 self._error_callback(e)
             return
 
         self._buffer = self._buffer[written_bytes:]
-        if not self._callback is None:
+        if self._callback is not None:
             self._callback()
+        if len(self._buffer) == 0 and self._close_after_send:
+            self._handle.close()
+            self._is_done = True
 
     def send(self, data: str) -> None:
+        if self._close_after_send:
+            raise RuntimeError('OutputBuffer: cannot send data after close')
         self._buffer += data
 
     def send_line(self, data: str) -> None:
+        if self._close_after_send:
+            raise RuntimeError('OutputBuffer: cannot send data after close')
         self._buffer += data + '\n'
+
+    def buffer_size(self) -> int:
+        return len(self._buffer)
+
+    def buffer_empty(self) -> bool:
+        return len(self._buffer) == 0
+
+    def close(self) -> None:
+        self._close_after_send = True

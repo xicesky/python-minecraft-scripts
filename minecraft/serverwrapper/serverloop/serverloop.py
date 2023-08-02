@@ -1,119 +1,14 @@
 
 import logging
 import select
+import threading
 import time
+import traceback
+from typing import Callable, TypeVar
+
+from minecraft.serverwrapper.serverloop.objects import RepeatedCallback, WaitingObject, WaitingOnetimeCallback
 
 logger = logging.getLogger(__name__)
-
-class WaitingObject:
-    _name = None
-    _is_done = False
-
-    def __init__(self, name=None):
-        self._name = name
-
-    def is_done(self):
-        return self._is_done
-    def is_waiting_to_receive(self) -> bool:
-        return False
-    def is_waiting_to_send(self) -> bool:
-        return False
-    def is_waiting_for_exception(self) -> bool:
-        return False
-    def is_waiting_for_timeout(self) -> bool:
-        return False
-
-    def do_receive(self) -> None:
-        pass
-    def do_send(self) -> None:
-        pass
-    def do_exception(self) -> None:
-        pass
-    def do_timeout(self) -> None:
-        pass
-
-    def __str__(self) -> str:
-        return f'WaitingObject({self._name})'
-    def __repr__(self) -> str:
-        return f'WaitingObject({self._name})'
-
-
-class WaitingOnetimeCallback(WaitingObject):
-    _target = None
-    _fileno = None
-    _callback = None
-    _is_waiting_to_receive = False
-    _is_waiting_to_send = False
-    _is_waiting_for_exception = False
-
-    def __init__(self, callback, seconds=None, fileno=None, is_waiting_to_receive=False, is_waiting_to_send=False, is_waiting_for_exception=False, name=None):
-        super().__init__(name=name)
-        self._callback = callback
-        if not seconds is None:
-            self._target = time.time() + seconds
-        if not fileno is None:
-            # If fileno is an integer, it is a file descriptor, otherwise it is a file-like object
-            if isinstance(fileno, int):
-                self._fileno = fileno
-            else:
-                self._fileno = fileno.fileno()
-        self._is_waiting_to_receive = is_waiting_to_receive
-        self._is_waiting_to_send = is_waiting_to_send
-        self._is_waiting_for_exception = is_waiting_for_exception
-
-    def is_waiting_to_receive(self):
-        return self._is_waiting_to_receive
-
-    def is_waiting_to_send(self):
-        return self._is_waiting_to_send
-
-    def is_waiting_for_exception(self):
-        return self._is_waiting_for_exception
-
-    def is_waiting_for_timeout(self):
-        return self._target
-
-    def fileno(self):
-        return self._fileno
-
-    def do_receive(self):
-        self._callback()
-        self._is_done = True
-
-    def do_send(self):
-        self._callback()
-        self._is_done = True
-
-    def do_exception(self):
-        self._callback()
-        self._is_done = True
-
-    def do_timeout(self):
-        self._target = None
-        self._callback()
-        self._is_done = True
-
-
-class RepeatedCallback(WaitingObject):
-    _target = None
-    _callback = None
-    _interval = None
-
-    def __init__(self, callback, interval, name=None):
-        super().__init__(name=name)
-        self._callback = callback
-        self._interval = interval
-        self._target = time.time() + interval
-
-    def is_waiting_for_timeout(self):
-        return self._target
-
-    def do_timeout(self):
-        self._target = time.time() + self._interval
-        r = self._callback()
-        if r is False:
-            self._target = None
-            self._is_done = True
 
 
 class ServerLoop:
@@ -145,6 +40,13 @@ class ServerLoop:
     def remove_waiting_object(self, waiting_object) -> None:
         self._waiting_objects.remove(waiting_object)
 
+    def remove_maybe_waiting_object(self, waiting_object) -> None:
+        try:
+            self._waiting_objects.remove(waiting_object)
+        except ValueError:
+            # Ignore if not in list
+            pass
+
     def call_after(self, seconds, callback, name=None) -> WaitingObject:
         return self.add_waiting_object(WaitingOnetimeCallback(callback, seconds=seconds, name=name))
 
@@ -172,7 +74,8 @@ class ServerLoop:
         # FIXME: Add name to callback
         self._callbacks['on_shutdown'].append(callback)
 
-    def build_waiting_lists(self) -> tuple[list, list, list, float]:
+    def build_waiting_lists(self) -> tuple[int, list, list, list, float]:
+        total = 0
         waiting_r = []
         waiting_w = []
         waiting_x = []
@@ -185,18 +88,28 @@ class ServerLoop:
                 logger.debug(f'build_waiting_lists: Removing {waiting_object} from waiting list.')
                 self._waiting_objects.remove(waiting_object)
                 continue
+            waiting = False
             if waiting_object.is_waiting_to_receive():
                 waiting_r.append(waiting_object)
+                waiting = True
             if waiting_object.is_waiting_to_send():
                 waiting_w.append(waiting_object)
+                waiting = True
             if waiting_object.is_waiting_for_exception():
                 waiting_x.append(waiting_object)
+                waiting = True
             timeout = waiting_object.is_waiting_for_timeout()
             if not (timeout is None or timeout is False):
                 if min_timestamp is None or timeout < min_timestamp:
                     min_timestamp = timeout
+                waiting = True
 
-        return waiting_r, waiting_w, waiting_x, min_timestamp
+            if waiting:
+                total += 1
+            else:
+                logger.warning(f'build_waiting_lists: {waiting_object} is not waiting for anything.')
+
+        return total, waiting_r, waiting_w, waiting_x, min_timestamp
 
     def prune_waiting_list(self) -> None:
         # Remove all waiting objects that are done
@@ -214,10 +127,7 @@ class ServerLoop:
             if timeout is not None and timeout is not False:
                 if timeout <= self._current_tick:
                     count_timeouts += 1
-                    try:
-                        waiting_object.do_timeout()
-                    except Exception as e:
-                        logger.error(f'Exception in do_timeout() of {waiting_object}: {e}')
+                    self._run_callbacks(waiting_object.do_timeout, owner=waiting_object, name='do_timeout')
         return count_timeouts
 
     def main_loop(self) -> None:
@@ -229,7 +139,12 @@ class ServerLoop:
         while self._running:
             try:
                 # Build lists & calculate timeout
-                waiting_r, waiting_w, waiting_x, min_timestamp = self.build_waiting_lists()
+                count, waiting_r, waiting_w, waiting_x, min_timestamp = self.build_waiting_lists()
+                if count == 0:
+                    logger.debug('No waiting objects in main_loop() - exitting.')
+                    self.stop()
+                    continue
+
                 if min_timestamp is None:
                     rel_timeout = self._idle_timeout
                 else:
@@ -272,14 +187,28 @@ class ServerLoop:
             except KeyboardInterrupt:
                 self.on_keyboard_interrupt()
 
+        # FIXME: Remaining waiting objects should be finalized somehow
+
         self.on_shutdown()
 
-    def _run_callbacks(self, callback_name) -> None:
-        for callback in self._callbacks[callback_name]:
+    def _run_callbacks(self, callback_name_or_callbacks, owner=None, name=None) -> None:
+        if isinstance(callback_name_or_callbacks, str):
+            self._run_callbacks(self._callbacks[callback_name_or_callbacks], name=callback_name_or_callbacks)
+        elif isinstance(callback_name_or_callbacks, list):
+            for callback in callback_name_or_callbacks:
+                self._run_callbacks(callback, name=callback_name_or_callbacks)
+        else:
+            callback = callback_name_or_callbacks
             try:
                 callback()
             except Exception as e:
-                logger.error(f'Exception in {callback_name} callback {callback}: {e}')
+                if name is None:
+                    name = 'unknown'
+                st = traceback.format_exc()
+                ownerstr = ''
+                if owner is not None:
+                    ownerstr = f' of {owner}'
+                logger.error(f'Exception in {name} callback {callback}{ownerstr}: {e}\n{st}')
 
     def on_idle_timeout(self) -> None:
         self._run_callbacks('on_idle_timeout')
@@ -291,11 +220,32 @@ class ServerLoop:
         self._run_callbacks('on_shutdown')
 
 
+_thread_local = threading.local()
+
+
+def get_server_loop():
+    if not hasattr(_thread_local, 'ServerLoop_instance'):
+        _thread_local.ServerLoop_instance = ServerLoop()
+    return _thread_local.ServerLoop_instance
+
+
+T = TypeVar('T')
+
+
+def run_server_loop(inner: Callable[[], T]) -> T:
+    result = None
+
+    def do_inner():
+        nonlocal result
+        result = inner()
+
+    sl = get_server_loop()
+    sl.call_after(0.0, do_inner, name='run_server_loop-inner')
+    sl.run()
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     logger.warning('Running this script directly is JUST FOR DEBUGGING')
     print('This just quickly tests the ServerLoop class.')
-    serverLoop = ServerLoop()
-    serverLoop.call_after(1.0, lambda: print('Hello, world!'))
-    serverLoop.call_after(2.0, lambda: serverLoop.stop())
-    serverLoop.run()
+    run_server_loop(lambda: print('Hello, world!'))

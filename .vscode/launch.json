@@ -28,5 +28,19 @@
             "module": "minecraft.serverwrapper.serverwrapper",
             "justMyCode": false
         },
-    ]
+        {
+            "name": "minecraft.serverwrapper.serverloop.serverloop",
+            "type": "python",
+            "request": "launch",
+            "module": "minecraft.serverwrapper.serverloop.serverloop",
+            "justMyCode": false
+        },
+        {
+          "name": "minecraft.serverwrapper.serverloop.process",
+          "type": "python",
+          "request": "launch",
+          "module": "minecraft.serverwrapper.serverloop.process",
+          "justMyCode": false
+      },
+  ]
 }
