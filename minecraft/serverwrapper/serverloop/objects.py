@@ -46,11 +46,14 @@ class WaitingObject:
     def do_timeout(self) -> None:
         pass
 
+    def ignore_when_idle(self) -> bool:
+        return False
+
     def __str__(self) -> str:
-        return f'WaitingObject({self._name})'
+        return f'{type(self).__name__}({self._name})'
 
     def __repr__(self) -> str:
-        return f'WaitingObject({self._name})'
+        return f'{type(self).__name__}({self._name})'
 
 
 class WaitingOnetimeCallback(WaitingObject):

@@ -13,12 +13,12 @@ logger = logging.getLogger(__name__)
 
 class ServerLoop:
 
-    _idle_timeout = 5.0
-    _running = False
-    _current_tick = None
-    _last_tick = None
-    _waiting_objects = []
-    _callbacks = {
+    _idle_timeout: float = 5.0
+    _running: bool = False
+    _current_tick: float = None
+    _last_tick: float = None
+    _waiting_objects: list[WaitingObject] = []
+    _callbacks: dict[str, list[Callable]] = {
         'on_idle_timeout': [],
         'on_keyboard_interrupt': [],
         'on_shutdown': []
@@ -104,10 +104,11 @@ class ServerLoop:
                     min_timestamp = timeout
                 waiting = True
 
-            if waiting:
-                total += 1
-            else:
-                logger.warning(f'build_waiting_lists: {waiting_object} is not waiting for anything.')
+            if not waiting_object.ignore_when_idle():
+                if waiting:
+                    total += 1
+                else:
+                    logger.warning(f'build_waiting_lists: {waiting_object} is not waiting for anything.')
 
         return total, waiting_r, waiting_w, waiting_x, min_timestamp
 

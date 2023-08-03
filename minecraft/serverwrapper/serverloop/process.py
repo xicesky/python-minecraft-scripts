@@ -1,3 +1,4 @@
+from asyncio import sleep
 import logging
 import subprocess
 from typing import Callable
@@ -139,6 +140,10 @@ class Process:
         self._subprocess.kill()
         self._subprocess.wait()
         # _check_alive and _async_exit will handle the rest
+
+    def term_kill(self, seconds=5.0) -> None:
+        self._minecraft.terminate()
+        self._serverloop.call_after(seconds, self.kill)
 
     def returncode(self) -> int:
         return self._subprocess.returncode

@@ -47,6 +47,7 @@ class OutputBuffer(WaitingObject):
     _callback: callable = None
     _error_callback: callable = None
     _close_after_send: bool = False
+    _ignore_when_idle: bool = True
 
     def __init__(self, handle: TextIO, callback: callable = None, name=None):
         super().__init__(name=name)
@@ -62,6 +63,9 @@ class OutputBuffer(WaitingObject):
 
     def is_waiting_to_send(self) -> bool:
         return len(self._buffer) > 0
+
+    def ignore_when_idle(self) -> bool:
+        return self._ignore_when_idle
 
     def do_send(self) -> None:
         try:

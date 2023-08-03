@@ -3,10 +3,8 @@ import logging
 from pathlib import Path
 import sys
 import os
-import subprocess
 import shutil
 from time import sleep
-import zipfile
 from minecraft.serverwrapper.broadcaster import MinecraftServerInfo, MinecraftServerLANBroadcaster
 from minecraft.serverwrapper.config import ConfigDict
 from minecraft.serverwrapper.logparser import MinecraftLogParser, MinecraftServerStartMessage
@@ -55,12 +53,9 @@ class MinecraftServerWrapper:
     _serverloop: ServerLoop = None
     _working_dir: str = None
     _current_jar_path: str = None
-    _server_subprocess: subprocess = None
+    _minecraft: Process = None
     _wo_tick: RepeatedCallback = None
     _wo_terminal_stdin: OutputBuffer = None
-    _wo_minecraft_stdin: LineInputBuffer = None
-    _wo_minecraft_stdout: LineInputBuffer = None
-    _wo_minecraft_stderr: LineInputBuffer = None
     _lan_broadcaster: MinecraftServerLANBroadcaster = None
     _server_info = None
     _logparser: MinecraftLogParser = None
@@ -179,14 +174,13 @@ class MinecraftServerWrapper:
         logger.info('Starting Minecraft server with the following command line:')
         for arg in commandline:
             logger.info('    {:s}'.format(arg))
-        self._minecraft = Process(self._serverloop, self._working_dir, commandline)
-
-        self._server_subprocess = subprocess.Popen(commandline, cwd=self._working_dir, bufsize=1, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        sl = self._serverloop
-        self._wo_minecraft_stdin = sl.add_waiting_object(OutputBuffer(self._server_subprocess.stdin, name='minecraft-stdin'))
-        self._wo_minecraft_stdout = sl.add_waiting_object(LineInputBuffer(self._server_subprocess.stdout, lambda line: self.handle_minecraft_server_output(line), name='minecraft-stdout'))
-        self._wo_minecraft_stderr = sl.add_waiting_object(LineInputBuffer(self._server_subprocess.stderr, lambda line: self.handle_minecraft_server_stderr(line), name='minecraft-stderr'))
-        sl.call_repeatedly(1.0, self.check_minecraft_server, name='check-minecraft-server')
+        self._minecraft = Process(
+            commandline=commandline,
+            working_dir=self._working_dir,
+            stdout_callback=self.handle_minecraft_server_output,
+            stderr_callback=self.handle_minecraft_server_stderr,
+            exit_callback=self.handle_minecraft_server_stop,
+        )
 
     def tick(self):
         logger.debug('tick')
@@ -205,7 +199,7 @@ class MinecraftServerWrapper:
 
     def handle_terminal_input(self, line):
         logger.debug(f'terminal: {line}')
-        if self._server_subprocess is None:
+        if self._minecraft is None:
             logger.warn('terminal: Server not running, ignoring input!')
         else:
             self.send_to_mc(line)
@@ -218,60 +212,48 @@ class MinecraftServerWrapper:
         logger.info('{:10s}: {:s}'.format(source, line))
 
     def send_to_mc(self, command):
-        if self._server_subprocess is None:
+        if self._minecraft is None:
             raise MinecraftServerWrapperException('Server not running, cannot send command to server.')
         else:
-            self._wo_minecraft_stdin.send_line(command)
+            self._minecraft.send_line(command)
 
     def stop_minecraft_server(self):
-        if self._server_subprocess is None:
+        if self._minecraft is None:
             # FIXME: This does not really belong here but should be an async construct called after the server stops
             self._serverloop.stop()
             return
         try:
-            self.handle_minecraft_server_stop()
             self.send_to_mc('/stop')
         except BrokenPipeError:
             pass
         # Set a timeout and then hard-kill the server
-        self._serverloop.call_after(30.0, self.kill_minecraft_server)
+        minecraft = self._minecraft     # Bind to current process
+        self._serverloop.call_after(30.0, lambda: minecraft.term_kill())
 
     def kill_minecraft_server(self):
         logger.warn('Killing Minecraft server...')
-        self._server_subprocess.terminate()
+        self._minecraft.terminate()
         sleep(1.0)
-        self._server_subprocess.kill()
-        # TODO: Save return code?
-        self._server_subprocess.wait()
-        self._server_subprocess = None
-        # FIXME: This does not really belong here but should be an async construct called after the server stops
-        self._serverloop.stop()
-
-    def check_minecraft_server(self):
-        if self._server_subprocess is None:
-            return False
-        rc = self._server_subprocess.poll()
-        if rc is not None:
-            logger.info('Server exited with rc={:d}'.format(rc))
-            self.handle_minecraft_server_stop()
-            self._serverloop.stop()
+        self._minecraft.kill()
 
     def handle_minecraft_server_start(self, host, port):
-        if self._server_info is not None:
+        if self._server_info is not None and self._lan_broadcaster is not None:
             logger.warn('Server broadcast already started, re-registering.')
-            self.handle_minecraft_server_stop()
+            self._lan_broadcaster.remove_server(self._server_info)
+
         self._server_info = MinecraftServerInfo(self._config['minecraft']['server']['name'], port)
         if self._lan_broadcaster is not None:
             logger.warn('Starting server broadcast: {:s}'.format(str(self._server_info)))
             self._lan_broadcaster.add_server(self._server_info)
 
-    def handle_minecraft_server_stop(self):
-        if self._server_info is None:
-            logger.warn('Server broadcast not started, ignoring.')
-            return
-        if self._lan_broadcaster is not None:
+    def handle_minecraft_server_stop(self, rc=None):
+        if self._server_info is not None and self._lan_broadcaster is not None:
             logger.warn('Stopping server broadcast: {:s}'.format(str(self._server_info)))
             self._lan_broadcaster.remove_server(self._server_info)
+        self._server_info = None
+        self._minecraft = None
+        # TODO: For now, exit if minecraft exitted - later we might want to re-start or sth
+        self._serverloop.stop()
 
 
 if __name__ == '__main__':
