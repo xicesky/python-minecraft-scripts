@@ -59,6 +59,14 @@ def show_current_config():
     """
     print(MinecraftServerWrapper()._config.to_yaml())
 
+@click.command(name='sync')
+def sync_instance():
+    """Prepares the instance working directory and synchronizes mods & config
+    """
+    sw = MinecraftServerWrapper()
+    sw.create_working_dir()
+    sw.sync_instance()
+
 @click.group()
 def config():
     """Commands for managing the configuration
@@ -68,6 +76,8 @@ def config():
 
 config.add_command(show_default_config)
 config.add_command(show_current_config)
+# FIXME: doesn't belong to config
+config.add_command(sync_instance)
 
 @click.command(name='sync')
 def sync_modpack():

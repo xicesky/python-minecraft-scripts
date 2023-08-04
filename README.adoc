@@ -85,11 +85,11 @@ $ pipenv run pre-commit install
 Run tests
 $ pipenv run pytest
 
+You can try to install the script in editable mode, but it doesn't always work well
+$ pipenv install -e .
+
 Run script from the shell
 $ pipenv run minecraft-serverwrapper version
-
-You can try to install the script in editable mode, but it doesn't always work well
-$ pip install -e .
 
 Also, update pre-commit hooks from time to time:
 $ pre-commit autoupdate

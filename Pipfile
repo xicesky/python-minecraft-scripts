@@ -9,6 +9,7 @@ click = "*"
 click-shell = "*"
 click-log = "*"
 colorama = "*"
+minecraft-serverwrapper = {editable = true, path = "."}
 
 [dev-packages]
 pre-commit = "*"

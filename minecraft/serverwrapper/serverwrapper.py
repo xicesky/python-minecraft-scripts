@@ -5,6 +5,7 @@ import sys
 import os
 import shutil
 from time import sleep
+from minecraft.serverwrapper import util
 from minecraft.serverwrapper.broadcaster import MinecraftServerInfo, MinecraftServerLANBroadcaster
 from minecraft.serverwrapper.config import ConfigDict
 from minecraft.serverwrapper.logparser import MinecraftLogParser, MinecraftServerStartMessage
@@ -79,11 +80,7 @@ class MinecraftServerWrapper:
     def start(self):
         logger.info('Starting Minecraft server wrapper...')
         self.create_working_dir()
-        if self._config['minecraft']['modpack']['auto-load']:
-            self.sync_modpack()
-        if self._config['wrapper']['auto-accept-eula']:
-            self.accept_eula()
-        self.download_launcher()
+        self.sync_instance()
 
         sl = self._serverloop = ServerLoop()
         self._wo_terminal_stdin = sl.add_waiting_object(LineInputBuffer(sys.stdin, self.handle_terminal_input, name='terminal'))
@@ -101,6 +98,38 @@ class MinecraftServerWrapper:
             os.mkdir(self._working_dir)
         else:
             logger.info('Working directory already exists, skipping creation.')
+
+    def sync_instance(self):
+        self.sync_config()
+        if self._config['minecraft']['modpack']['auto-load']:
+            self.sync_modpack()
+        self.download_launcher()
+
+    def sync_config(self):
+        if self._config['wrapper']['auto-accept-eula']:
+            self.accept_eula()
+        for filename in ["whitelist.json", "ops.json"]:
+            if os.path.exists(filename):
+                logger.info(f"Installing link to global {filename}")
+                dest = self._working_dir + "/" + filename
+                util.symlink(filename, self._working_dir, overwrite=True)
+        # TODO: Set stuff in server.properties (like pvp=false)
+
+    def accept_eula(self):
+        # Replace "eula=false" with "eula=true" in eula.txt
+        logger.info('Accepting EULA...')
+        if os.path.exists(self._working_dir + '/eula.txt'):
+            with open(self._working_dir + '/eula.txt', 'r') as f:
+                lines = f.readlines()
+            with open(self._working_dir + '/eula.txt', 'w') as f:
+                for line in lines:
+                    if line.startswith('eula=false'):
+                        line = 'eula=true\n'
+                    f.write(line)
+        else:
+            # Write eula.txt
+            with open(self._working_dir + '/eula.txt', 'w') as f:
+                f.write('eula=true\n')
 
     def sync_modpack(self):
         modpack_mod_dir = deepsearch_for_mods_dir(".")
@@ -132,22 +161,6 @@ class MinecraftServerWrapper:
             logger.info('Copying mod {:s}...'.format(modpack_mod))
             copy_mod_from_zip(modpack_mod_dir / modpack_mod, mod_dir)
         logger.info('Done syncing mods.')
-
-    def accept_eula(self):
-        # Replace "eula=false" with "eula=true" in eula.txt
-        logger.info('Accepting EULA...')
-        if os.path.exists(self._working_dir + '/eula.txt'):
-            with open(self._working_dir + '/eula.txt', 'r') as f:
-                lines = f.readlines()
-            with open(self._working_dir + '/eula.txt', 'w') as f:
-                for line in lines:
-                    if line.startswith('eula=false'):
-                        line = 'eula=true\n'
-                    f.write(line)
-        else:
-            # Write eula.txt
-            with open(self._working_dir + '/eula.txt', 'w') as f:
-                f.write('eula=true\n')
 
     def download_launcher(self):
         minecraft_version = self._config['minecraft']['version']

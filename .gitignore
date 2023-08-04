@@ -167,3 +167,5 @@ cython_debug/
 /.minecraft-server
 /*.zip
 /minecraft.yaml
+/ops.json
+/whitelist.json
